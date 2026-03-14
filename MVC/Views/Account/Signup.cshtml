@@ -33,6 +33,11 @@
                             <input class="form-control" asp-for="Password" type="password" />
                             <span class="text-danger" asp-validation-for="Password" data-field="Password"></span>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="ConfirmPassword"></label>
+                            <input class="form-control" asp-for="ConfirmPassword" type="password" />
+                            <span class="text-danger" asp-validation-for="ConfirmPassword" data-field="ConfirmPassword"></span>
+                        </div>
                         <button type="submit" class="btn btn-primary w-100">Sign Up</button>
                     </form>
 
@@ -98,6 +103,7 @@
                 var fullName = $("#FullName").val().trim();
                 var email = $("#Email").val().trim();
                 var password = $("#Password").val().trim();
+                var confirmPassword = $("#ConfirmPassword").val().trim();
                 var valid = true;
 
                 if (!fullName) {
@@ -115,6 +121,13 @@
 
                 if (!password) {
                     setFieldError("Password", "Password is required.");
+                    valid = false;
+                }
+                if (!confirmPassword) {
+                    setFieldError("ConfirmPassword", "Confirm password is required.");
+                    valid = false;
+                } else if (password && confirmPassword && password !== confirmPassword) {
+                    setFieldError("ConfirmPassword", "Passwords do not match.");
                     valid = false;
                 }
 

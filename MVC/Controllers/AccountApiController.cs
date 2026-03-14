@@ -45,6 +45,11 @@ public sealed class AccountApiController : ControllerBase
             return BadRequest(new { success = false, message = "Please fill in all required fields." });
         }
 
+        if (!string.Equals(model.Password, model.ConfirmPassword, StringComparison.Ordinal))
+        {
+            return BadRequest(new { success = false, message = "Passwords do not match." });
+        }
+
         var existing = await _userRepository.GetUserByEmailAsync(model.Email, cancellationToken);
         if (existing is not null)
         {

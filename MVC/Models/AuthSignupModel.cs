@@ -20,4 +20,10 @@ public sealed class AuthSignupModel
     [DataType(DataType.Password)]
     [MaxLength(200)]
     public string Password { get; set; }
+
+    [Required]
+    [DataType(DataType.Password)]
+    [MaxLength(200)]
+    [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+    public string ConfirmPassword { get; set; }
 }
