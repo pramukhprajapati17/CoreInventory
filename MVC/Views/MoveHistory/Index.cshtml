@@ -1,0 +1,125 @@
+@{
+    ViewData["Title"] = "Move History";
+}
+
+<h2 class="mb-3">Move History</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var products = new kendo.data.DataSource({
+                transport: { read: { url: "/api/movehistory/products", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ProductId !== undefined) {
+                            return response.map(function (x) {
+                                return { productId: x.ProductId, productName: x.ProductName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { productId: x.productId, productName: x.productName };
+                        });
+                    }
+                }
+            });
+
+            var locations = new kendo.data.DataSource({
+                transport: { read: { url: "/api/movehistory/locations", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(function (x) {
+                                return { locationId: x.LocationId, locationName: x.LocationName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { locationId: x.locationId, locationName: x.locationName };
+                        });
+                    }
+                }
+            });
+
+            products.read();
+            locations.read();
+
+            function toCamel(item) {
+                return {
+                    ledgerId: item.LedgerId,
+                    productId: item.ProductId,
+                    locationId: item.LocationId,
+                    docType: item.DocType,
+                    docId: item.DocId,
+                    qtyChange: item.QtyChange,
+                    createdAt: item.CreatedAt
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/movehistory", type: "GET", dataType: "json" }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LedgerId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        fields: {
+                            ledgerId: { type: "number" },
+                            productId: { type: "number" },
+                            locationId: { type: "number" },
+                            docType: { type: "string" },
+                            docId: { type: "number" },
+                            qtyChange: { type: "number" },
+                            createdAt: { type: "date" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "ledgerId", title: "ID", width: 80 },
+                    {
+                        field: "productId",
+                        title: "Product",
+                        template: function (dataItem) {
+                            var item = products.data().find(function (x) { return x.productId === dataItem.productId; });
+                            return item ? item.productName : "";
+                        }
+                    },
+                    {
+                        field: "locationId",
+                        title: "Location",
+                        template: function (dataItem) {
+                            var item = locations.data().find(function (x) { return x.locationId === dataItem.locationId; });
+                            return item ? item.locationName : "";
+                        }
+                    },
+                    { field: "docType", title: "Doc Type" },
+                    { field: "docId", title: "Doc ID" },
+                    { field: "qtyChange", title: "Qty Change" },
+                    { field: "createdAt", title: "Created At", format: "{0:yyyy-MM-dd HH:mm}" }
+                ],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+
+            products.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+            locations.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+        });
+    </script>
+}

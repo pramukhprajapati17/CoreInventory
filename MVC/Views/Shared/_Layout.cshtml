@@ -12,24 +12,68 @@
     <link rel="stylesheet" href="~/MVC.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="app-header">
-        <div class="app-brand">
-            <a asp-area="" asp-controller="Home" asp-action="Index">CoreInventory</a>
-        </div>
-        <div class="app-actions">
-            @if (Context.Session.TryGetValue("c_user_id", out _))
-            {
-                <a class="btn btn-link text-light" asp-area="" asp-controller="Home" asp-action="Index">Dashboard</a>
-                <form asp-controller="Account" asp-action="Logout" method="post" class="inline-form">
-                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
-                </form>
-            }
-            else
-            {
-                <a class="btn btn-link text-light" asp-controller="Account" asp-action="Login">Login</a>
-                <a class="btn btn-warning btn-sm" asp-controller="Account" asp-action="Signup">Sign Up</a>
-            }
-        </div>
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-bold" asp-area="" asp-controller="Home" asp-action="Index">CoreInventory</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="mainNavbar">
+                    @if (Context.Session.TryGetValue("c_user_id", out _))
+                    {
+                        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                            <li class="nav-item"><a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a></li>
+                            <li class="nav-item"><a class="nav-link" asp-controller="Products" asp-action="Index">Products</a></li>
+                            <li class="nav-item"><a class="nav-link" asp-controller="Categories" asp-action="Index">Categories</a></li>
+                            <li class="nav-item"><a class="nav-link" asp-controller="Uoms" asp-action="Index">UoM</a></li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="masterDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Master</a>
+                                <ul class="dropdown-menu" aria-labelledby="masterDropdown">
+                                    <li><a class="dropdown-item" asp-controller="Warehouses" asp-action="Index">Warehouses</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Locations" asp-action="Index">Locations</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Suppliers" asp-action="Index">Suppliers</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Customers" asp-action="Index">Customers</a></li>
+                                </ul>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="opsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Operations</a>
+                                <ul class="dropdown-menu" aria-labelledby="opsDropdown">
+                                    <li><a class="dropdown-item" asp-controller="Receipts" asp-action="Index">Receipts</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Deliveries" asp-action="Index">Deliveries</a></li>
+                            <li><a class="dropdown-item" asp-controller="Transfers" asp-action="Index">Transfers</a></li>
+                            <li><a class="dropdown-item" asp-controller="Adjustments" asp-action="Index">Adjustments</a></li>
+                            <li><a class="dropdown-item" asp-controller="MoveHistory" asp-action="Index">Move History</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="stockDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Stock</a>
+                        <ul class="dropdown-menu" aria-labelledby="stockDropdown">
+                            <li><a class="dropdown-item" asp-controller="Stock" asp-action="Availability">Availability</a></li>
+                            <li><a class="dropdown-item" asp-controller="Stock" asp-action="Alerts">Low Stock Alerts</a></li>
+                            <li><a class="dropdown-item" asp-controller="Stock" asp-action="ReorderRules">Reorder Rules</a></li>
+                        </ul>
+                    </li>
+                        </ul>
+                        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                            <li class="nav-item">
+                                <a class="nav-link" asp-controller="Profile" asp-action="Index">My Profile</a>
+                            </li>
+                        </ul>
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-flex">
+                            <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                            <li class="nav-item"><a class="nav-link" asp-controller="Account" asp-action="Login">Login</a></li>
+                            <li class="nav-item"><a class="btn btn-warning btn-sm ms-lg-2" asp-controller="Account" asp-action="Signup">Sign Up</a></li>
+                        </ul>
+                    }
+                </div>
+            </div>
+        </nav>
     </header>
 
     <main role="main" class="app-main">

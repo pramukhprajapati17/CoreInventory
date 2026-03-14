@@ -78,4 +78,64 @@ public sealed class IUserInterface_repo : IUserInterface
             IsActive = reader.GetBoolean(reader.GetOrdinal("c_is_active")),
         };
     }
+
+    public async Task<UserRecord?> GetUserByIdAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            select
+                c_user_id,
+                c_full_name,
+                c_email,
+                c_password,
+                c_phone,
+                c_is_active
+            from t_user
+            where c_user_id = @id
+            limit 1;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", userId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        return new UserRecord
+        {
+            UserId = reader.GetInt64(reader.GetOrdinal("c_user_id")),
+            FullName = reader.GetString(reader.GetOrdinal("c_full_name")),
+            Email = reader.GetString(reader.GetOrdinal("c_email")),
+            PasswordHash = reader.GetString(reader.GetOrdinal("c_password")),
+            Phone = reader.IsDBNull(reader.GetOrdinal("c_phone")) ? null : reader.GetString(reader.GetOrdinal("c_phone")),
+            IsActive = reader.GetBoolean(reader.GetOrdinal("c_is_active")),
+        };
+    }
+
+    public async Task<bool> UpdateProfileAsync(long userId, string fullName, string? phone, string? password, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            update t_user
+            set c_full_name = @full_name,
+                c_phone = @phone,
+                c_password = coalesce(@password, c_password),
+                c_updated_at = now()
+            where c_user_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", userId);
+        command.Parameters.AddWithValue("@full_name", fullName);
+        command.Parameters.AddWithValue("@phone", (object?)phone ?? DBNull.Value);
+        command.Parameters.AddWithValue("@password", string.IsNullOrWhiteSpace(password) ? DBNull.Value : password);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
 }

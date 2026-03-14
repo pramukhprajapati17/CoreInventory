@@ -1,0 +1,175 @@
+@{
+    ViewData["Title"] = "Receipts";
+}
+
+<h2 class="mb-3">Receipts (Incoming)</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var suppliers = new kendo.data.DataSource({
+                transport: { read: { url: "/api/receipts/suppliers", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].SupplierId !== undefined) {
+                            return response.map(function (x) {
+                                return { supplierId: x.SupplierId, supplierName: x.SupplierName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { supplierId: x.supplierId, supplierName: x.supplierName };
+                        });
+                    }
+                }
+            });
+
+            suppliers.read();
+
+            function toCamel(item) {
+                return {
+                    receiptId: item.ReceiptId,
+                    receiptNo: item.ReceiptNo,
+                    supplierId: item.SupplierId,
+                    status: item.Status,
+                    expectedDate: item.ExpectedDate
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/receipts", type: "GET", dataType: "json" },
+                    create: { url: "/api/receipts", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/receipts/" + data.receiptId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                ReceiptId: asNumber(data.receiptId),
+                                ReceiptNo: data.receiptNo,
+                                SupplierId: asNumber(data.supplierId),
+                                Status: data.status,
+                                ExpectedDate: data.expectedDate
+                            };
+                            if (type === "create") {
+                                delete payload.ReceiptId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ReceiptId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "receiptId",
+                        fields: {
+                            receiptId: { type: "number", editable: false, nullable: true },
+                            receiptNo: { type: "string", validation: { required: true } },
+                            supplierId: { type: "number" },
+                            status: { type: "string", validation: { required: true }, defaultValue: "Draft" },
+                            expectedDate: { type: "date" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "receiptId", title: "ID", width: 80 },
+                    { field: "receiptNo", title: "Receipt No" },
+                    {
+                        field: "supplierId",
+                        title: "Supplier",
+                        editor: function (container, options) {
+                            $('<input data-text-field="supplierName" data-value-field="supplierId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: suppliers, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = suppliers.data().find(function (x) { return x.supplierId === dataItem.supplierId; });
+                            return item ? item.supplierName : "";
+                        }
+                    },
+                    {
+                        field: "status",
+                        title: "Status",
+                        editor: function (container, options) {
+                            $('<input data-text-field="text" data-value-field="value" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({
+                                    dataSource: [
+                                        { text: "Draft", value: "Draft" },
+                                        { text: "Waiting", value: "Waiting" },
+                                        { text: "Ready", value: "Ready" },
+                                        { text: "Done", value: "Done" },
+                                        { text: "Canceled", value: "Canceled" }
+                                    ]
+                                });
+                        }
+                    },
+                    {
+                        field: "expectedDate",
+                        title: "Expected Date",
+                        format: "{0:yyyy-MM-dd}",
+                        editor: function (container, options) {
+                            $('<input name="' + options.field + '" />')
+                                .appendTo(container)
+                                .kendoDatePicker({ format: "yyyy-MM-dd" });
+                        }
+                    },
+                    { command: ["edit"], title: "Actions", width: "140px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+
+            suppliers.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+        });
+    </script>
+}

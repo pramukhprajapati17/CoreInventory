@@ -1,0 +1,128 @@
+@{
+    ViewData["Title"] = "Reorder Rules";
+}
+
+<h2 class="mb-3">Reorder Rules</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function toCamel(item) {
+                return {
+                    reorderRuleId: item.ReorderRuleId,
+                    productId: item.ProductId,
+                    locationId: item.LocationId,
+                    minQty: item.MinQty,
+                    maxQty: item.MaxQty,
+                    isActive: item.IsActive
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/stock/rules", type: "GET", dataType: "json" },
+                    create: { url: "/api/stock/rules", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/stock/rules/" + data.reorderRuleId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/stock/rules/" + data.reorderRuleId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                ReorderRuleId: asNumber(data.reorderRuleId),
+                                ProductId: asNumber(data.productId),
+                                LocationId: asNumber(data.locationId),
+                                MinQty: data.minQty,
+                                MaxQty: data.maxQty,
+                                IsActive: data.isActive
+                            };
+                            if (type === "create") {
+                                delete payload.ReorderRuleId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ ReorderRuleId: data.reorderRuleId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ReorderRuleId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "reorderRuleId",
+                        fields: {
+                            reorderRuleId: { type: "number", editable: false, nullable: true },
+                            productId: { type: "number", validation: { required: true } },
+                            locationId: { type: "number" },
+                            minQty: { type: "number", validation: { required: true } },
+                            maxQty: { type: "number" },
+                            isActive: { type: "boolean", defaultValue: true }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "reorderRuleId", title: "ID", width: 80 },
+                    { field: "productId", title: "Product Id" },
+                    { field: "locationId", title: "Location Id" },
+                    { field: "minQty", title: "Min Qty" },
+                    { field: "maxQty", title: "Max Qty" },
+                    { field: "isActive", title: "Active", width: 120 },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+        });
+    </script>
+}

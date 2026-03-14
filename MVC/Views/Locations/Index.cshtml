@@ -1,0 +1,166 @@
+@{
+    ViewData["Title"] = "Locations";
+}
+
+<h2 class="mb-3">Locations</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var warehouses = new kendo.data.DataSource({
+                transport: { read: { url: "/api/locations/warehouses", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].WarehouseId !== undefined) {
+                            return response.map(function (x) {
+                                return { warehouseId: x.WarehouseId, warehouseName: x.WarehouseName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { warehouseId: x.warehouseId, warehouseName: x.warehouseName };
+                        });
+                    }
+                }
+            });
+
+            warehouses.read();
+
+            function toCamel(item) {
+                return {
+                    locationId: item.LocationId,
+                    warehouseId: item.WarehouseId,
+                    locationName: item.LocationName,
+                    locationCode: item.LocationCode,
+                    isActive: item.IsActive
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/locations?warehouseId=1", type: "GET", dataType: "json" },
+                    create: { url: "/api/locations", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/locations/" + data.locationId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/locations/" + data.locationId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                LocationId: asNumber(data.locationId),
+                                WarehouseId: asNumber(data.warehouseId),
+                                LocationName: data.locationName,
+                                LocationCode: data.locationCode,
+                                IsActive: data.isActive
+                            };
+                            if (type === "create") {
+                                delete payload.LocationId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ LocationId: data.locationId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "locationId",
+                        fields: {
+                            locationId: { type: "number", editable: false, nullable: true },
+                            warehouseId: { type: "number", validation: { required: true } },
+                            locationName: { type: "string", validation: { required: true } },
+                            locationCode: { type: "string", validation: { required: true } },
+                            isActive: { type: "boolean" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "locationId", title: "ID", width: 80 },
+                    {
+                        field: "warehouseId",
+                        title: "Warehouse",
+                        editor: function (container, options) {
+                            $('<input data-text-field="warehouseName" data-value-field="warehouseId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: warehouses, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = warehouses.data().find(function (x) { return x.warehouseId === dataItem.warehouseId; });
+                            return item ? item.warehouseName : "";
+                        }
+                    },
+                    { field: "locationName", title: "Name" },
+                    { field: "locationCode", title: "Code" },
+                    { field: "isActive", title: "Active", width: 120 },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true,
+                edit: function (e) {
+                    var popup = e.container.data("kendoWindow");
+                    var updateButton = e.container.find(".k-grid-update");
+                    var isNew = e.model.isNew();
+                    if (isNew) {
+                        popup.title("Create Location");
+                        updateButton.text("Add Location");
+                    } else {
+                        popup.title("Edit Location");
+                        updateButton.text("Update Location");
+                    }
+                }
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+        });
+    </script>
+}

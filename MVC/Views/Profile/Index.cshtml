@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<h2 class="mb-3">My Profile</h2>
+<div class="card section-card p-4">
+    <form id="profileForm">
+        <div class="mb-3">
+            <label class="form-label" for="FullName">Full Name</label>
+            <input class="form-control" id="FullName" name="FullName" type="text" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="Email">Email</label>
+            <input class="form-control" id="Email" name="Email" type="email" disabled />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="Phone">Phone</label>
+            <input class="form-control" id="Phone" name="Phone" type="text" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="Password">New Password</label>
+            <input class="form-control" id="Password" name="Password" type="password" />
+        </div>
+        <button type="submit" class="btn btn-primary">Update Profile</button>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $.getJSON("/api/profile", function (data) {
+                $("#FullName").val(data.fullName);
+                $("#Email").val(data.email);
+                $("#Phone").val(data.phone);
+            });
+
+            $("#profileForm").on("submit", function (e) {
+                e.preventDefault();
+                var payload = {
+                    FullName: $("#FullName").val(),
+                    Phone: $("#Phone").val(),
+                    Password: $("#Password").val()
+                };
+
+                $.ajax({
+                    url: "/api/profile",
+                    type: "PUT",
+                    contentType: "application/json",
+                    dataType: "json",
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        Swal.fire({
+                            toast: true,
+                            position: "top-end",
+                            icon: "success",
+                            title: res.message || "Profile updated",
+                            showConfirmButton: false,
+                            timer: 1200,
+                            width: 280
+                        });
+                        $("#Password").val("");
+                    },
+                    error: function (xhr) {
+                        var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "Update failed.";
+                        Swal.fire({ icon: "error", title: "Error", text: msg });
+                    }
+                });
+            });
+        });
+    </script>
+}

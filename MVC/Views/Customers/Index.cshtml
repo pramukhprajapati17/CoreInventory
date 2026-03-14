@@ -1,0 +1,132 @@
+@{
+    ViewData["Title"] = "Customers";
+}
+
+<h2 class="mb-3">Customers</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function toCamel(item) {
+                return {
+                    customerId: item.CustomerId,
+                    customerName: item.CustomerName,
+                    email: item.Email,
+                    phone: item.Phone
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/customers", type: "GET", dataType: "json" },
+                    create: { url: "/api/customers", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/customers/" + data.customerId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/customers/" + data.customerId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                CustomerId: asNumber(data.customerId),
+                                CustomerName: data.customerName,
+                                Email: data.email,
+                                Phone: data.phone
+                            };
+                            if (type === "create") {
+                                delete payload.CustomerId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ CustomerId: data.customerId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].CustomerId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "customerId",
+                        fields: {
+                            customerId: { type: "number", editable: false, nullable: true },
+                            customerName: { type: "string", validation: { required: true } },
+                            email: { type: "string" },
+                            phone: { type: "string" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "customerId", title: "ID", width: 80 },
+                    { field: "customerName", title: "Name" },
+                    { field: "email", title: "Email" },
+                    { field: "phone", title: "Phone" },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true,
+                edit: function (e) {
+                    var popup = e.container.data("kendoWindow");
+                    var updateButton = e.container.find(".k-grid-update");
+                    var isNew = e.model.isNew();
+                    if (isNew) {
+                        popup.title("Create Customer");
+                        updateButton.text("Add Customer");
+                    } else {
+                        popup.title("Edit Customer");
+                        updateButton.text("Update Customer");
+                    }
+                }
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+        });
+    </script>
+}

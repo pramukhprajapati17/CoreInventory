@@ -1,0 +1,128 @@
+@{
+    ViewData["Title"] = "UoM";
+}
+
+<h2 class="mb-3">Units of Measure</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function toCamel(item) {
+                return {
+                    uomId: item.UomId,
+                    uomName: item.UomName,
+                    uomCode: item.UomCode
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/uoms", type: "GET", dataType: "json" },
+                    create: { url: "/api/uoms", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/uoms/" + data.uomId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/uoms/" + data.uomId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                UomId: asNumber(data.uomId),
+                                UomName: data.uomName,
+                                UomCode: data.uomCode
+                            };
+                            if (type === "create") {
+                                delete payload.UomId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ UomId: data.uomId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].UomId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "uomId",
+                        fields: {
+                            uomId: { type: "number", editable: false, nullable: true },
+                            uomName: { type: "string", validation: { required: true } },
+                            uomCode: { type: "string", validation: { required: true } }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "uomId", title: "ID", width: 80 },
+                    { field: "uomName", title: "Name" },
+                    { field: "uomCode", title: "Code" },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true,
+                edit: function (e) {
+                    var popup = e.container.data("kendoWindow");
+                    var updateButton = e.container.find(".k-grid-update");
+                    var isNew = e.model.isNew();
+                    if (isNew) {
+                        popup.title("Create UoM");
+                        updateButton.text("Add UoM");
+                    } else {
+                        popup.title("Edit UoM");
+                        updateButton.text("Update UoM");
+                    }
+                }
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+        });
+    </script>
+}

@@ -1,0 +1,166 @@
+@{
+    ViewData["Title"] = "Adjustments";
+}
+
+<h2 class="mb-3">Inventory Adjustments</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var locations = new kendo.data.DataSource({
+                transport: { read: { url: "/api/adjustments/locations", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(function (x) {
+                                return { locationId: x.LocationId, locationName: x.LocationName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { locationId: x.locationId, locationName: x.locationName };
+                        });
+                    }
+                }
+            });
+
+            locations.read();
+
+            function toCamel(item) {
+                return {
+                    adjustmentId: item.AdjustmentId,
+                    adjustmentNo: item.AdjustmentNo,
+                    locationId: item.LocationId,
+                    status: item.Status,
+                    reason: item.Reason
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/adjustments", type: "GET", dataType: "json" },
+                    create: { url: "/api/adjustments", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/adjustments/" + data.adjustmentId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                AdjustmentId: asNumber(data.adjustmentId),
+                                AdjustmentNo: data.adjustmentNo,
+                                LocationId: asNumber(data.locationId),
+                                Status: data.status,
+                                Reason: data.reason
+                            };
+                            if (type === "create") {
+                                delete payload.AdjustmentId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].AdjustmentId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "adjustmentId",
+                        fields: {
+                            adjustmentId: { type: "number", editable: false, nullable: true },
+                            adjustmentNo: { type: "string", validation: { required: true } },
+                            locationId: { type: "number", validation: { required: true } },
+                            status: { type: "string", validation: { required: true }, defaultValue: "Draft" },
+                            reason: { type: "string" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "adjustmentId", title: "ID", width: 80 },
+                    { field: "adjustmentNo", title: "Adjustment No" },
+                    {
+                        field: "locationId",
+                        title: "Location",
+                        editor: function (container, options) {
+                            $('<input data-text-field="locationName" data-value-field="locationId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: locations, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = locations.data().find(function (x) { return x.locationId === dataItem.locationId; });
+                            return item ? item.locationName : "";
+                        }
+                    },
+                    {
+                        field: "status",
+                        title: "Status",
+                        editor: function (container, options) {
+                            $('<input data-text-field="text" data-value-field="value" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({
+                                    dataSource: [
+                                        { text: "Draft", value: "Draft" },
+                                        { text: "Waiting", value: "Waiting" },
+                                        { text: "Ready", value: "Ready" },
+                                        { text: "Done", value: "Done" },
+                                        { text: "Canceled", value: "Canceled" }
+                                    ]
+                                });
+                        }
+                    },
+                    { field: "reason", title: "Reason" },
+                    { command: ["edit"], title: "Actions", width: "140px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+
+            locations.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+        });
+    </script>
+}

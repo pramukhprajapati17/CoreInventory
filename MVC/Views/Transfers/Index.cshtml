@@ -1,0 +1,178 @@
+@{
+    ViewData["Title"] = "Transfers";
+}
+
+<h2 class="mb-3">Internal Transfers</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var locations = new kendo.data.DataSource({
+                transport: { read: { url: "/api/transfers/locations", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(function (x) {
+                                return { locationId: x.LocationId, locationName: x.LocationName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { locationId: x.locationId, locationName: x.locationName };
+                        });
+                    }
+                }
+            });
+
+            locations.read();
+
+            function toCamel(item) {
+                return {
+                    transferId: item.TransferId,
+                    transferNo: item.TransferNo,
+                    fromLocationId: item.FromLocationId,
+                    toLocationId: item.ToLocationId,
+                    status: item.Status
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/transfers", type: "GET", dataType: "json" },
+                    create: { url: "/api/transfers", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/transfers/" + data.transferId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                TransferId: asNumber(data.transferId),
+                                TransferNo: data.transferNo,
+                                FromLocationId: asNumber(data.fromLocationId),
+                                ToLocationId: asNumber(data.toLocationId),
+                                Status: data.status
+                            };
+                            if (type === "create") {
+                                delete payload.TransferId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].TransferId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "transferId",
+                        fields: {
+                            transferId: { type: "number", editable: false, nullable: true },
+                            transferNo: { type: "string", validation: { required: true } },
+                            fromLocationId: { type: "number", validation: { required: true } },
+                            toLocationId: { type: "number", validation: { required: true } },
+                            status: { type: "string", validation: { required: true }, defaultValue: "Draft" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "transferId", title: "ID", width: 80 },
+                    { field: "transferNo", title: "Transfer No" },
+                    {
+                        field: "fromLocationId",
+                        title: "From Location",
+                        editor: function (container, options) {
+                            $('<input data-text-field="locationName" data-value-field="locationId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: locations, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = locations.data().find(function (x) { return x.locationId === dataItem.fromLocationId; });
+                            return item ? item.locationName : "";
+                        }
+                    },
+                    {
+                        field: "toLocationId",
+                        title: "To Location",
+                        editor: function (container, options) {
+                            $('<input data-text-field="locationName" data-value-field="locationId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: locations, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = locations.data().find(function (x) { return x.locationId === dataItem.toLocationId; });
+                            return item ? item.locationName : "";
+                        }
+                    },
+                    {
+                        field: "status",
+                        title: "Status",
+                        editor: function (container, options) {
+                            $('<input data-text-field="text" data-value-field="value" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({
+                                    dataSource: [
+                                        { text: "Draft", value: "Draft" },
+                                        { text: "Waiting", value: "Waiting" },
+                                        { text: "Ready", value: "Ready" },
+                                        { text: "Done", value: "Done" },
+                                        { text: "Canceled", value: "Canceled" }
+                                    ]
+                                });
+                        }
+                    },
+                    { command: ["edit"], title: "Actions", width: "140px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+
+            locations.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+        });
+    </script>
+}

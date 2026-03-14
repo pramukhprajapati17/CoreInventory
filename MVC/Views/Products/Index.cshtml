@@ -1,0 +1,197 @@
+@{
+    ViewData["Title"] = "Products";
+}
+
+<h2 class="mb-3">Products</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var categories = new kendo.data.DataSource({
+                transport: { read: { url: "/api/products/categories", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].CategoryId !== undefined) {
+                            return response.map(function (x) {
+                                return { categoryId: x.CategoryId, categoryName: x.CategoryName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { categoryId: x.categoryId, categoryName: x.categoryName };
+                        });
+                    }
+                }
+            });
+
+            var uoms = new kendo.data.DataSource({
+                transport: { read: { url: "/api/products/uoms", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].UomId !== undefined) {
+                            return response.map(function (x) {
+                                return { uomId: x.UomId, uomName: x.UomName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { uomId: x.uomId, uomName: x.uomName };
+                        });
+                    }
+                }
+            });
+
+            categories.read();
+            uoms.read();
+
+            function toCamel(item) {
+                return {
+                    productId: item.ProductId,
+                    productName: item.ProductName,
+                    sku: item.Sku,
+                    categoryId: item.CategoryId,
+                    uomId: item.UomId,
+                    isActive: item.IsActive
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/products", type: "GET", dataType: "json" },
+                    create: { url: "/api/products", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/products/" + data.productId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/products/" + data.productId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        if (type === "create" || type === "update") {
+                            return kendo.stringify({
+                                ProductId: data.productId,
+                                ProductName: data.productName,
+                                Sku: data.sku,
+                                CategoryId: data.categoryId,
+                                UomId: data.uomId,
+                                IsActive: data.isActive
+                            });
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ ProductId: data.productId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ProductId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "productId",
+                        fields: {
+                            productId: { type: "number", editable: false, nullable: true },
+                            productName: { type: "string", validation: { required: true } },
+                            sku: { type: "string", validation: { required: true } },
+                            categoryId: { type: "number", nullable: true },
+                            uomId: { type: "number", nullable: true },
+                            isActive: { type: "boolean" }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "productId", title: "ID", width: 80 },
+                    { field: "productName", title: "Name" },
+                    { field: "sku", title: "SKU / Code" },
+                    {
+                        field: "categoryId",
+                        title: "Category",
+                        editor: function (container, options) {
+                            $('<input data-text-field="categoryName" data-value-field="categoryId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: categories, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = categories.data().find(function (x) { return x.categoryId === dataItem.categoryId; });
+                            return item ? item.categoryName : "";
+                        }
+                    },
+                    {
+                        field: "uomId",
+                        title: "UoM",
+                        editor: function (container, options) {
+                            $('<input data-text-field="uomName" data-value-field="uomId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: uoms, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = uoms.data().find(function (x) { return x.uomId === dataItem.uomId; });
+                            return item ? item.uomName : "";
+                        }
+                    },
+                    { field: "isActive", title: "Active", width: 120 },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true,
+                edit: function (e) {
+                    var popup = e.container.data("kendoWindow");
+                    var updateButton = e.container.find(".k-grid-update");
+                    var isNew = e.model.isNew();
+                    if (isNew) {
+                        popup.title("Create Product");
+                        updateButton.text("Add Product");
+                    } else {
+                        popup.title("Edit Product");
+                        updateButton.text("Update Product");
+                    }
+                }
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+
+            categories.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+            uoms.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+        });
+    </script>
+}

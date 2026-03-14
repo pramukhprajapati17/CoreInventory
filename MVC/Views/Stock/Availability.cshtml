@@ -1,0 +1,58 @@
+@{
+    ViewData["Title"] = "Stock Availability";
+}
+
+<h2 class="mb-3">Stock Availability</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function toCamel(item) {
+                return {
+                    stockId: item.StockId,
+                    productId: item.ProductId,
+                    productName: item.ProductName,
+                    locationId: item.LocationId,
+                    locationName: item.LocationName,
+                    warehouseName: item.WarehouseName,
+                    qty: item.Qty,
+                    minQty: item.MinQty,
+                    maxQty: item.MaxQty
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: { read: { url: "/api/stock/availability", dataType: "json" } },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].StockId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "stockId", title: "ID", width: 80 },
+                    { field: "productName", title: "Product" },
+                    { field: "warehouseName", title: "Warehouse" },
+                    { field: "locationName", title: "Location" },
+                    { field: "qty", title: "Qty" },
+                    { field: "minQty", title: "Min Qty" },
+                    { field: "maxQty", title: "Max Qty" }
+                ],
+                pageable: true,
+                sortable: true,
+                filterable: true
+            });
+        });
+    </script>
+}

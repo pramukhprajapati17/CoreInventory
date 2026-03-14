@@ -1,0 +1,133 @@
+@{
+    ViewData["Title"] = "Warehouses";
+}
+
+<h2 class="mb-3">Warehouses</h2>
+<div id="grid"></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function toCamel(item) {
+                return {
+                    warehouseId: item.WarehouseId,
+                    warehouseName: item.WarehouseName,
+                    code: item.Code,
+                    isActive: item.IsActive
+                };
+            }
+
+            var dataSource = new kendo.data.DataSource({
+                transport: {
+                    read: { url: "/api/warehouses", type: "GET", dataType: "json" },
+                    create: { url: "/api/warehouses", type: "POST", contentType: "application/json", dataType: "json" },
+                    update: {
+                        url: function (data) { return "/api/warehouses/" + data.warehouseId; },
+                        type: "PUT",
+                        contentType: "application/json",
+                        dataType: "json"
+                    },
+                    destroy: {
+                        url: function (data) { return "/api/warehouses/" + data.warehouseId; },
+                        type: "DELETE",
+                        dataType: "json"
+                    },
+                    parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
+                        if (type === "create" || type === "update") {
+                            var payload = {
+                                WarehouseId: asNumber(data.warehouseId),
+                                WarehouseName: data.warehouseName,
+                                Code: data.code,
+                                IsActive: data.isActive
+                            };
+                            if (type === "create") {
+                                delete payload.WarehouseId;
+                            }
+                            return kendo.stringify(payload);
+                        }
+                        if (type === "destroy") {
+                            return kendo.stringify({ WarehouseId: data.warehouseId });
+                        }
+                        return data;
+                    }
+                },
+                pageSize: 10,
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].WarehouseId !== undefined) {
+                            return response.map(toCamel);
+                        }
+                        return response;
+                    },
+                    model: {
+                        id: "warehouseId",
+                        fields: {
+                            warehouseId: { type: "number", editable: false, nullable: true },
+                            warehouseName: { type: "string", validation: { required: true } },
+                            code: { type: "string", validation: { required: true } },
+                            isActive: { type: "boolean", defaultValue: true }
+                        }
+                    }
+                }
+            });
+
+            $("#grid").kendoGrid({
+                dataSource: dataSource,
+                columns: [
+                    { field: "warehouseId", title: "ID", width: 80 },
+                    { field: "warehouseName", title: "Name" },
+                    { field: "code", title: "Code" },
+                    { field: "isActive", title: "Active", width: 120 },
+                    { command: ["edit", "destroy"], title: "Actions", width: "200px" }
+                ],
+                editable: "popup",
+                toolbar: ["create"],
+                pageable: true,
+                sortable: true,
+                filterable: true,
+                edit: function (e) {
+                    var popup = e.container.data("kendoWindow");
+                    var updateButton = e.container.find(".k-grid-update");
+                    var isNew = e.model.isNew();
+                    if (isNew) {
+                        popup.title("Create Warehouse");
+                        updateButton.text("Add Warehouse");
+                    } else {
+                        popup.title("Edit Warehouse");
+                        updateButton.text("Update Warehouse");
+                    }
+                }
+            });
+
+            dataSource.bind("error", function (e) {
+                var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                    ? e.xhr.responseJSON.message
+                    : "Operation failed.";
+                Swal.fire({ icon: "error", title: "Error", text: message });
+            });
+
+            dataSource.bind("requestEnd", function (e) {
+                if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                    dataSource.read();
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Saved",
+                        showConfirmButton: false,
+                        timer: 1200,
+                        width: 280
+                    });
+                }
+            });
+        });
+    </script>
+}
