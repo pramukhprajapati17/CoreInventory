@@ -35,3 +35,18 @@ Desktop.ini
 *.snupkg
 packages/
 .nuget/
+
+# Local settings / secrets
+*.secrets.json
+.env
+.env.*
+appsettings.Development.json
+
+# Local database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf

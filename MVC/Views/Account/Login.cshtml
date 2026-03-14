@@ -1,0 +1,133 @@
+@model MVC.Models.AuthLoginModel
+
+@{
+    ViewData["Title"] = "Login";
+}
+
+<div class="container">
+    <div class="row align-items-stretch g-4">
+        <div class="col-lg-6">
+            <div class="card auth-card h-100">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="auth-title mb-2">Welcome back</div>
+                    <div class="auth-subtitle mb-4">Sign in to continue to CoreInventory.</div>
+
+                    <form id="loginForm" asp-action="Login" asp-controller="Account" method="post">
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="Email"></label>
+                            <input class="form-control" asp-for="Email" type="email" />
+                            <span class="text-danger" asp-validation-for="Email" data-field="Email"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="Password"></label>
+                            <input class="form-control" asp-for="Password" type="password" />
+                            <span class="text-danger" asp-validation-for="Password" data-field="Password"></span>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+
+                    <div class="mt-3">
+                        <a class="text-decoration-none" asp-controller="Account" asp-action="Signup">Create account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="auth-visual h-100">
+                <h3 class="fw-bold">Inventory clarity, fast.</h3>
+                <p>Track receipts, deliveries, transfers, and adjustments in one place with real-time visibility.</p>
+                <ul class="mb-0">
+                    <li>Live stock snapshots</li>
+                    <li>Multi-warehouse ready</li>
+                    <li>Smart filters & alerts</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            var errorMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Error ?? string.Empty));
+            var successMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Success"] ?? string.Empty));
+
+            if (errorMessage) {
+                Swal.fire({ icon: "error", title: "Login failed", text: errorMessage });
+            }
+            if (successMessage) {
+                Swal.fire({ icon: "success", title: "Success", text: successMessage });
+            }
+
+            function clearValidation() {
+                $("#loginForm [data-field]").text("");
+                $("#loginForm .form-control").removeClass("is-invalid");
+            }
+
+            function setFieldError(field, message) {
+                var feedback = $("#loginForm [data-field='" + field + "']");
+                if (feedback.length) {
+                    feedback.text(message);
+                    $("#loginForm #" + field).addClass("is-invalid");
+                }
+            }
+
+            function isValidEmail(email) {
+                var atIndex = email.indexOf(String.fromCharCode(64));
+                if (atIndex <= 0 || atIndex >= email.length - 3) {
+                    return false;
+                }
+                var dotIndex = email.indexOf(".", atIndex + 2);
+                return dotIndex > atIndex + 1 && dotIndex < email.length - 1;
+            }
+
+            function clientValidate() {
+                var email = $("#Email").val().trim();
+                var password = $("#Password").val().trim();
+                var valid = true;
+
+                if (!email) {
+                    setFieldError("Email", "Email is required.");
+                    valid = false;
+                } else if (!isValidEmail(email)) {
+                    setFieldError("Email", "Enter a valid email.");
+                    valid = false;
+                }
+
+                if (!password) {
+                    setFieldError("Password", "Password is required.");
+                    valid = false;
+                }
+
+                return valid;
+            }
+
+            $("#loginForm").on("submit", function (e) {
+                e.preventDefault();
+                clearValidation();
+                if (!clientValidate()) {
+                    return;
+                }
+                var formData = $(this).serialize();
+
+                $.ajax({
+                    url: "/api/account/login",
+                    type: "POST",
+                    data: formData,
+                    success: function (res) {
+                        if (res && res.success) {
+                            window.location.href = "/Home/Index";
+                        } else {
+                            Swal.fire({ icon: "error", title: "Login failed", text: res.message || "Invalid credentials." });
+                        }
+                    },
+                    error: function (xhr) {
+                        var response = xhr.responseJSON;
+                        Swal.fire({ icon: "error", title: "Error", text: response?.message || "Unable to login right now." });
+                    }
+                });
+            });
+        });
+    </script>
+}

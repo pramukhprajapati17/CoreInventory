@@ -2,6 +2,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<Repositories.Interfaces.IUserInterface>(_ =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    return new Repositories.Repositories.IUserInterface_repo(connectionString ?? string.Empty);
+});
+builder.Services.AddSession(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.IdleTimeout = TimeSpan.FromHours(8);
+});
 
 var app = builder.Build();
 
@@ -18,7 +29,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-app.UseAuthorization();
+app.UseSession();
 
 app.MapControllerRoute(
     name: "default",

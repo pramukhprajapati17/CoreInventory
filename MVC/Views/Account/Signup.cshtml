@@ -1,0 +1,147 @@
+@model MVC.Models.AuthSignupModel
+
+@{
+    ViewData["Title"] = "Sign Up";
+}
+
+<div class="container">
+    <div class="row align-items-stretch g-4">
+        <div class="col-lg-6">
+            <div class="card auth-card h-100">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="auth-title mb-2">Create your account</div>
+                    <div class="auth-subtitle mb-4">Start managing inventory in minutes.</div>
+
+                    <form id="signupForm" asp-action="Signup" asp-controller="Account" method="post">
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="FullName"></label>
+                            <input class="form-control" asp-for="FullName" />
+                            <span class="text-danger" asp-validation-for="FullName" data-field="FullName"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="Email"></label>
+                            <input class="form-control" asp-for="Email" type="email" />
+                            <span class="text-danger" asp-validation-for="Email" data-field="Email"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="Phone"></label>
+                            <input class="form-control" asp-for="Phone" type="text" />
+                            <span class="text-danger" asp-validation-for="Phone" data-field="Phone"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" asp-for="Password"></label>
+                            <input class="form-control" asp-for="Password" type="password" />
+                            <span class="text-danger" asp-validation-for="Password" data-field="Password"></span>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Sign Up</button>
+                    </form>
+
+                    <div class="mt-3">
+                        <a class="text-decoration-none" asp-controller="Account" asp-action="Login">Already have an account?</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="auth-visual h-100">
+                <h3 class="fw-bold">Built for warehouse speed.</h3>
+                <p>Organize products, track movements, and keep inventory accurate with smart tooling.</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="badge bg-light text-dark">Receipts</span>
+                    <span class="badge bg-light text-dark">Transfers</span>
+                    <span class="badge bg-light text-dark">Adjustments</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            var errorMessage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewBag.Error ?? string.Empty));
+            if (errorMessage) {
+                Swal.fire({ icon: "error", title: "Sign up failed", text: errorMessage });
+            }
+
+            function clearValidation() {
+                $("#signupForm [data-field]").text("");
+                $("#signupForm .form-control").removeClass("is-invalid");
+            }
+
+            function setFieldError(field, message) {
+                var feedback = $("#signupForm [data-field='" + field + "']");
+                if (feedback.length) {
+                    feedback.text(message);
+                    $("#signupForm #" + field).addClass("is-invalid");
+                }
+            }
+
+            function isValidEmail(email) {
+                var atIndex = email.indexOf(String.fromCharCode(64));
+                if (atIndex <= 0 || atIndex >= email.length - 3) {
+                    return false;
+                }
+                var dotIndex = email.indexOf(".", atIndex + 2);
+                return dotIndex > atIndex + 1 && dotIndex < email.length - 1;
+            }
+
+            function clientValidate() {
+                var fullName = $("#FullName").val().trim();
+                var email = $("#Email").val().trim();
+                var password = $("#Password").val().trim();
+                var valid = true;
+
+                if (!fullName) {
+                    setFieldError("FullName", "Full name is required.");
+                    valid = false;
+                }
+
+                if (!email) {
+                    setFieldError("Email", "Email is required.");
+                    valid = false;
+                } else if (!isValidEmail(email)) {
+                    setFieldError("Email", "Enter a valid email.");
+                    valid = false;
+                }
+
+                if (!password) {
+                    setFieldError("Password", "Password is required.");
+                    valid = false;
+                }
+
+                return valid;
+            }
+
+            $("#signupForm").on("submit", function (e) {
+                e.preventDefault();
+                clearValidation();
+                if (!clientValidate()) {
+                    return;
+                }
+                var formData = $(this).serialize();
+
+                $.ajax({
+                    url: "/api/account/signup",
+                    type: "POST",
+                    data: formData,
+                    success: function (res) {
+                        if (res && res.success) {
+                            Swal.fire({ icon: "success", title: "Account created", text: res.message || "Please login to continue." })
+                                .then(function () {
+                                    window.location.href = "/Account/Login";
+                                });
+                        } else {
+                            Swal.fire({ icon: "error", title: "Sign up failed", text: res.message || "Unable to create account." });
+                        }
+                    },
+                    error: function (xhr) {
+                        var response = xhr.responseJSON;
+                        Swal.fire({ icon: "error", title: "Error", text: response?.message || "Unable to create account right now." });
+                    }
+                });
+            });
+        });
+    </script>
+}

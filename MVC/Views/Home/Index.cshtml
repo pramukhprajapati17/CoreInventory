@@ -1,8 +1,109 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@{
+    ViewData["Title"] = "Dashboard";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="dashboard-hero mb-4">
+    <div>
+        <h2>Inventory Dashboard</h2>
+        <p class="mb-0 text-muted">Quick snapshot of inventory operations.</p>
+    </div>
+    <div class="dashboard-hero-actions">
+        <button class="btn btn-primary">New Receipt</button>
+        <button class="btn btn-outline-secondary">New Delivery</button>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-kpi p-3">
+            <div class="text-muted">Total Products</div>
+            <div class="kpi-value">1,284</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi p-3">
+            <div class="text-muted">Low / Out of Stock</div>
+            <div class="kpi-value kpi-warn">38</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi p-3">
+            <div class="text-muted">Pending Receipts</div>
+            <div class="kpi-value">12</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-kpi p-3">
+            <div class="text-muted">Pending Deliveries</div>
+            <div class="kpi-value">7</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card section-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Activity Snapshot</h5>
+                <span class="badge bg-light text-dark">Today</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                            <th>Warehouse</th>
+                            <th class="text-end">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Receipt</td>
+                            <td>RC-1092</td>
+                            <td><span class="badge bg-warning text-dark">Waiting</span></td>
+                            <td>Main</td>
+                            <td class="text-end">120</td>
+                        </tr>
+                        <tr>
+                            <td>Delivery</td>
+                            <td>DL-4412</td>
+                            <td><span class="badge bg-primary">Ready</span></td>
+                            <td>Warehouse 1</td>
+                            <td class="text-end">40</td>
+                        </tr>
+                        <tr>
+                            <td>Transfer</td>
+                            <td>TR-3321</td>
+                            <td><span class="badge bg-secondary">Draft</span></td>
+                            <td>Main</td>
+                            <td class="text-end">15</td>
+                        </tr>
+                        <tr>
+                            <td>Adjustment</td>
+                            <td>AD-0094</td>
+                            <td><span class="badge bg-success">Done</span></td>
+                            <td>Warehouse 2</td>
+                            <td class="text-end">-3</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card section-card p-4 mb-3">
+            <h5 class="mb-3">Alerts</h5>
+            <ul class="mb-0">
+                <li>Low stock: Steel Rods (12 units)</li>
+                <li>Out of stock: Packing Tape</li>
+                <li>Transfer pending: Warehouse 1 → Main</li>
+            </ul>
+        </div>
+        <div class="card section-card p-4">
+            <h5 class="mb-3">Weekly Overview</h5>
+            <p class="mb-0">Operations are running smoothly across all warehouses. Pending deliveries are within SLA.</p>
+        </div>
+    </div>
 </div>
