@@ -17,7 +17,7 @@ public class HomeController : Controller
     {
         if (!HttpContext.Session.TryGetValue("c_user_id", out _))
         {
-            return RedirectToAction("Login", "Account");
+            return View("Landing");
         }
 
         return View();

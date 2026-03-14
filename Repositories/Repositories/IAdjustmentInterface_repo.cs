@@ -178,4 +178,86 @@ public sealed class IAdjustmentInterface_repo : IAdjustmentInterface
         command.Parameters.AddWithValue("@status", status);
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
+
+    public async Task<IReadOnlyList<AdjustmentLineRecord>> ListLinesAsync(long adjustmentId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            select c_adjustment_line_id, c_adjustment_id, c_product_id, c_counted_qty, c_system_qty
+            from t_adjustment_line
+            where c_adjustment_id = @id;
+            """;
+
+        var results = new List<AdjustmentLineRecord>();
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", adjustmentId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new AdjustmentLineRecord
+            {
+                AdjustmentLineId = reader.GetInt64(0),
+                AdjustmentId = reader.GetInt64(1),
+                ProductId = reader.GetInt64(2),
+                CountedQty = reader.GetDecimal(3),
+                SystemQty = reader.GetDecimal(4),
+            });
+        }
+
+        return results;
+    }
+
+    public async Task<long> AddLineAsync(AdjustmentLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            insert into t_adjustment_line (c_adjustment_id, c_product_id, c_counted_qty, c_system_qty)
+            values (@adjustment_id, @product_id, @counted_qty, @system_qty)
+            returning c_adjustment_line_id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@adjustment_id", line.AdjustmentId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@counted_qty", line.CountedQty);
+        command.Parameters.AddWithValue("@system_qty", line.SystemQty);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is long id ? id : Convert.ToInt64(result);
+    }
+
+    public async Task<bool> UpdateLineAsync(AdjustmentLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            update t_adjustment_line
+            set c_product_id = @product_id,
+                c_counted_qty = @counted_qty,
+                c_system_qty = @system_qty
+            where c_adjustment_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", line.AdjustmentLineId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@counted_qty", line.CountedQty);
+        command.Parameters.AddWithValue("@system_qty", line.SystemQty);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            delete from t_adjustment_line
+            where c_adjustment_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", lineId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
 }

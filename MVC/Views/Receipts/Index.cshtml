@@ -11,6 +11,18 @@
     <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
     <script>
         $(document).ready(function () {
+            function showSuccessToast(title) {
+                Swal.fire({
+                    toast: true,
+                    position: "top-end",
+                    icon: "success",
+                    title: title || "Saved",
+                    showConfirmButton: false,
+                    timer: 1200,
+                    width: 280
+                });
+            }
+
             var suppliers = new kendo.data.DataSource({
                 transport: { read: { url: "/api/receipts/suppliers", dataType: "json" } },
                 schema: {
@@ -27,7 +39,46 @@
                 }
             });
 
+            var products = new kendo.data.DataSource({
+                transport: { read: { url: "/api/products", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ProductId !== undefined) {
+                            return response.map(function (x) {
+                                return { productId: x.ProductId, productName: x.ProductName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { productId: x.productId, productName: x.productName };
+                        });
+                    }
+                }
+            });
+
+            var locations = new kendo.data.DataSource({
+                transport: { read: { url: "/api/locations/all", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(function (x) {
+                                return { locationId: x.LocationId, locationName: x.LocationName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { locationId: x.locationId, locationName: x.locationName };
+                        });
+                    }
+                }
+            });
+
             suppliers.read();
+            products.read();
+            locations.read();
+
+            function asNumber(value) {
+                var n = Number(value);
+                return Number.isFinite(n) ? n : null;
+            }
 
             function toCamel(item) {
                 return {
@@ -37,6 +88,83 @@
                     status: item.Status,
                     expectedDate: item.ExpectedDate
                 };
+            }
+
+            function lineDataSource(receiptId) {
+                var lineDs = new kendo.data.DataSource({
+                    transport: {
+                        read: { url: "/api/receipts/" + receiptId + "/lines", type: "GET", dataType: "json" },
+                        create: { url: "/api/receipts/" + receiptId + "/lines", type: "POST", contentType: "application/json", dataType: "json" },
+                        update: {
+                            url: function (data) { return "/api/receipts/lines/" + data.receiptLineId; },
+                            type: "PUT",
+                            contentType: "application/json",
+                            dataType: "json"
+                        },
+                        destroy: {
+                            url: function (data) { return "/api/receipts/lines/" + data.receiptLineId; },
+                            type: "DELETE",
+                            dataType: "json"
+                        },
+                        parameterMap: function (data, type) {
+                            if (type === "create" || type === "update") {
+                                var payload = {
+                                    ReceiptLineId: asNumber(data.receiptLineId),
+                                    ReceiptId: receiptId,
+                                    ProductId: asNumber(data.productId),
+                                    LocationId: asNumber(data.locationId),
+                                    Quantity: asNumber(data.quantity)
+                                };
+                                if (type === "create") {
+                                    delete payload.ReceiptLineId;
+                                }
+                                return kendo.stringify(payload);
+                            }
+                            return data;
+                        }
+                    },
+                    schema: {
+                        data: function (response) {
+                            if (response && response.length && response[0].ReceiptLineId !== undefined) {
+                                return response.map(function (x) {
+                                    return {
+                                        receiptLineId: x.ReceiptLineId,
+                                        receiptId: x.ReceiptId,
+                                        productId: x.ProductId,
+                                        locationId: x.LocationId,
+                                        quantity: x.Quantity
+                                    };
+                                });
+                            }
+                            return response;
+                        },
+                        model: {
+                            id: "receiptLineId",
+                            fields: {
+                                receiptLineId: { type: "number", editable: false, nullable: true },
+                                receiptId: { type: "number", editable: false },
+                                productId: { type: "number", validation: { required: true } },
+                                locationId: { type: "number" },
+                                quantity: { type: "number", validation: { required: true, min: 0.01 } }
+                            }
+                        }
+                    }
+                });
+
+                lineDs.bind("error", function (e) {
+                    var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                        ? e.xhr.responseJSON.message
+                        : "Line operation failed.";
+                    Swal.fire({ icon: "error", title: "Error", text: message });
+                });
+
+                lineDs.bind("requestEnd", function (e) {
+                    if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                        showSuccessToast("Line saved");
+                    }
+                });
+
+                return lineDs;
             }
 
             var dataSource = new kendo.data.DataSource({
@@ -50,11 +178,6 @@
                         dataType: "json"
                     },
                     parameterMap: function (data, type) {
-                        function asNumber(value) {
-                            var n = Number(value);
-                            return Number.isFinite(n) ? n : null;
-                        }
-
                         if (type === "create" || type === "update") {
                             var payload = {
                                 ReceiptId: asNumber(data.receiptId),
@@ -143,7 +266,46 @@
                 toolbar: ["create"],
                 pageable: true,
                 sortable: true,
-                filterable: true
+                filterable: true,
+                detailInit: function (e) {
+                    $('<div class="lines-grid"></div>').appendTo(e.detailCell).kendoGrid({
+                        dataSource: lineDataSource(e.data.receiptId),
+                        columns: [
+                            {
+                                field: "productId",
+                                title: "Product",
+                                editor: function (container, options) {
+                                    $('<input data-text-field="productName" data-value-field="productId" data-bind="value:' + options.field + '"/>')
+                                        .appendTo(container)
+                                        .kendoDropDownList({ dataSource: products, optionLabel: "Select..." });
+                                },
+                                template: function (dataItem) {
+                                    var item = products.data().find(function (x) { return x.productId === dataItem.productId; });
+                                    return item ? item.productName : "";
+                                }
+                            },
+                            {
+                                field: "locationId",
+                                title: "Location",
+                                editor: function (container, options) {
+                                    $('<input data-text-field="locationName" data-value-field="locationId" data-bind="value:' + options.field + '"/>')
+                                        .appendTo(container)
+                                        .kendoDropDownList({ dataSource: locations, optionLabel: "Select..." });
+                                },
+                                template: function (dataItem) {
+                                    var item = locations.data().find(function (x) { return x.locationId === dataItem.locationId; });
+                                    return item ? item.locationName : "";
+                                }
+                            },
+                            { field: "quantity", title: "Quantity", format: "{0:n2}" },
+                            { command: ["edit", "destroy"], title: "Actions", width: 180 }
+                        ],
+                        editable: "popup",
+                        toolbar: ["create"],
+                        pageable: false,
+                        sortable: true
+                    });
+                }
             });
 
             dataSource.bind("error", function (e) {
@@ -155,19 +317,19 @@
 
             dataSource.bind("requestEnd", function (e) {
                 if ((e.type === "create" || e.type === "update") && e.response) {
-                    Swal.fire({
-                        toast: true,
-                        position: "top-end",
-                        icon: "success",
-                        title: "Saved",
-                        showConfirmButton: false,
-                        timer: 1200,
-                        width: 280
-                    });
+                    showSuccessToast("Saved");
                 }
             });
 
             suppliers.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+
+            products.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+
+            locations.bind("change", function () {
                 $("#grid").data("kendoGrid").refresh();
             });
         });

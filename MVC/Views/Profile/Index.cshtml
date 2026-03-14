@@ -3,26 +3,47 @@
 }
 
 <h2 class="mb-3">My Profile</h2>
-<div class="card section-card p-4">
-    <form id="profileForm">
-        <div class="mb-3">
-            <label class="form-label" for="FullName">Full Name</label>
-            <input class="form-control" id="FullName" name="FullName" type="text" required />
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <h5 class="mb-3">Profile Details</h5>
+            <form id="profileForm">
+                <div class="mb-3">
+                    <label class="form-label" for="FullName">Full Name</label>
+                    <input class="form-control" id="FullName" name="FullName" type="text" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="Email">Email</label>
+                    <input class="form-control" id="Email" name="Email" type="email" disabled />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="Phone">Phone</label>
+                    <input class="form-control" id="Phone" name="Phone" type="text" />
+                </div>
+                <button type="submit" class="btn btn-primary">Update Profile</button>
+            </form>
         </div>
-        <div class="mb-3">
-            <label class="form-label" for="Email">Email</label>
-            <input class="form-control" id="Email" name="Email" type="email" disabled />
+    </div>
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <h5 class="mb-3">Change Password</h5>
+            <form id="passwordForm">
+                <div class="mb-3">
+                    <label class="form-label" for="CurrentPassword">Current Password</label>
+                    <input class="form-control" id="CurrentPassword" name="CurrentPassword" type="password" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="NewPassword">New Password</label>
+                    <input class="form-control" id="NewPassword" name="NewPassword" type="password" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="ConfirmPassword">Confirm Password</label>
+                    <input class="form-control" id="ConfirmPassword" name="ConfirmPassword" type="password" required />
+                </div>
+                <button type="submit" class="btn btn-warning">Change Password</button>
+            </form>
         </div>
-        <div class="mb-3">
-            <label class="form-label" for="Phone">Phone</label>
-            <input class="form-control" id="Phone" name="Phone" type="text" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="Password">New Password</label>
-            <input class="form-control" id="Password" name="Password" type="password" />
-        </div>
-        <button type="submit" class="btn btn-primary">Update Profile</button>
-    </form>
+    </div>
 </div>
 
 @section Scripts {
@@ -39,7 +60,7 @@
                 var payload = {
                     FullName: $("#FullName").val(),
                     Phone: $("#Phone").val(),
-                    Password: $("#Password").val()
+                    Password: null
                 };
 
                 $.ajax({
@@ -62,6 +83,50 @@
                     },
                     error: function (xhr) {
                         var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "Update failed.";
+                        Swal.fire({ icon: "error", title: "Error", text: msg });
+                    }
+                });
+            });
+
+            $("#passwordForm").on("submit", function (e) {
+                e.preventDefault();
+
+                var newPassword = $("#NewPassword").val();
+                var confirmPassword = $("#ConfirmPassword").val();
+
+                if (newPassword !== confirmPassword) {
+                    Swal.fire({ icon: "error", title: "Error", text: "Passwords do not match." });
+                    return;
+                }
+
+                var payload = {
+                    CurrentPassword: $("#CurrentPassword").val(),
+                    NewPassword: newPassword,
+                    ConfirmPassword: confirmPassword
+                };
+
+                $.ajax({
+                    url: "/api/profile/password",
+                    type: "PUT",
+                    contentType: "application/json",
+                    dataType: "json",
+                    data: JSON.stringify(payload),
+                    success: function (res) {
+                        Swal.fire({
+                            toast: true,
+                            position: "top-end",
+                            icon: "success",
+                            title: res.message || "Password changed",
+                            showConfirmButton: false,
+                            timer: 1200,
+                            width: 280
+                        });
+                        $("#CurrentPassword").val("");
+                        $("#NewPassword").val("");
+                        $("#ConfirmPassword").val("");
+                    },
+                    error: function (xhr) {
+                        var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : "Change failed.";
                         Swal.fire({ icon: "error", title: "Error", text: msg });
                     }
                 });

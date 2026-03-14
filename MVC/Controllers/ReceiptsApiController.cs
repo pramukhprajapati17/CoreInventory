@@ -51,4 +51,45 @@ public sealed class ReceiptsApiController : ControllerBase
 
         return Ok(receipt);
     }
+
+    [HttpGet("{id:long}/lines")]
+    public async Task<IActionResult> Lines(long id, CancellationToken cancellationToken)
+    {
+        var data = await _receipts.ListLinesAsync(id, cancellationToken);
+        return Ok(data);
+    }
+
+    [HttpPost("{id:long}/lines")]
+    public async Task<IActionResult> AddLine(long id, [FromBody] ReceiptLineRecord line, CancellationToken cancellationToken)
+    {
+        line.ReceiptId = id;
+        var lineId = await _receipts.AddLineAsync(line, cancellationToken);
+        line.ReceiptLineId = lineId;
+        return Ok(line);
+    }
+
+    [HttpPut("lines/{lineId:long}")]
+    public async Task<IActionResult> UpdateLine(long lineId, [FromBody] ReceiptLineRecord line, CancellationToken cancellationToken)
+    {
+        line.ReceiptLineId = lineId;
+        var updated = await _receipts.UpdateLineAsync(line, cancellationToken);
+        if (!updated)
+        {
+            return NotFound(new { success = false, message = "Line not found." });
+        }
+
+        return Ok(line);
+    }
+
+    [HttpDelete("lines/{lineId:long}")]
+    public async Task<IActionResult> DeleteLine(long lineId, CancellationToken cancellationToken)
+    {
+        var deleted = await _receipts.DeleteLineAsync(lineId, cancellationToken);
+        if (!deleted)
+        {
+            return NotFound(new { success = false, message = "Line not found." });
+        }
+
+        return Ok(new { success = true });
+    }
 }

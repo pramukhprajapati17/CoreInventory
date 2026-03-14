@@ -11,6 +11,18 @@
     <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
     <script>
         $(document).ready(function () {
+            function showSuccessToast(title) {
+                Swal.fire({
+                    toast: true,
+                    position: "top-end",
+                    icon: "success",
+                    title: title || "Saved",
+                    showConfirmButton: false,
+                    timer: 1200,
+                    width: 280
+                });
+            }
+
             var locations = new kendo.data.DataSource({
                 transport: { read: { url: "/api/adjustments/locations", dataType: "json" } },
                 schema: {
@@ -27,7 +39,29 @@
                 }
             });
 
+            var products = new kendo.data.DataSource({
+                transport: { read: { url: "/api/products", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ProductId !== undefined) {
+                            return response.map(function (x) {
+                                return { productId: x.ProductId, productName: x.ProductName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { productId: x.productId, productName: x.productName };
+                        });
+                    }
+                }
+            });
+
             locations.read();
+            products.read();
+
+            function asNumber(value) {
+                var n = Number(value);
+                return Number.isFinite(n) ? n : null;
+            }
 
             function toCamel(item) {
                 return {
@@ -37,6 +71,83 @@
                     status: item.Status,
                     reason: item.Reason
                 };
+            }
+
+            function lineDataSource(adjustmentId) {
+                var lineDs = new kendo.data.DataSource({
+                    transport: {
+                        read: { url: "/api/adjustments/" + adjustmentId + "/lines", type: "GET", dataType: "json" },
+                        create: { url: "/api/adjustments/" + adjustmentId + "/lines", type: "POST", contentType: "application/json", dataType: "json" },
+                        update: {
+                            url: function (data) { return "/api/adjustments/lines/" + data.adjustmentLineId; },
+                            type: "PUT",
+                            contentType: "application/json",
+                            dataType: "json"
+                        },
+                        destroy: {
+                            url: function (data) { return "/api/adjustments/lines/" + data.adjustmentLineId; },
+                            type: "DELETE",
+                            dataType: "json"
+                        },
+                        parameterMap: function (data, type) {
+                            if (type === "create" || type === "update") {
+                                var payload = {
+                                    AdjustmentLineId: asNumber(data.adjustmentLineId),
+                                    AdjustmentId: adjustmentId,
+                                    ProductId: asNumber(data.productId),
+                                    CountedQty: asNumber(data.countedQty),
+                                    SystemQty: asNumber(data.systemQty)
+                                };
+                                if (type === "create") {
+                                    delete payload.AdjustmentLineId;
+                                }
+                                return kendo.stringify(payload);
+                            }
+                            return data;
+                        }
+                    },
+                    schema: {
+                        data: function (response) {
+                            if (response && response.length && response[0].AdjustmentLineId !== undefined) {
+                                return response.map(function (x) {
+                                    return {
+                                        adjustmentLineId: x.AdjustmentLineId,
+                                        adjustmentId: x.AdjustmentId,
+                                        productId: x.ProductId,
+                                        countedQty: x.CountedQty,
+                                        systemQty: x.SystemQty
+                                    };
+                                });
+                            }
+                            return response;
+                        },
+                        model: {
+                            id: "adjustmentLineId",
+                            fields: {
+                                adjustmentLineId: { type: "number", editable: false, nullable: true },
+                                adjustmentId: { type: "number", editable: false },
+                                productId: { type: "number", validation: { required: true } },
+                                countedQty: { type: "number", validation: { required: true, min: 0 } },
+                                systemQty: { type: "number", validation: { required: true, min: 0 } }
+                            }
+                        }
+                    }
+                });
+
+                lineDs.bind("error", function (e) {
+                    var message = e.xhr && e.xhr.responseJSON && e.xhr.responseJSON.message
+                        ? e.xhr.responseJSON.message
+                        : "Line operation failed.";
+                    Swal.fire({ icon: "error", title: "Error", text: message });
+                });
+
+                lineDs.bind("requestEnd", function (e) {
+                    if ((e.type === "create" || e.type === "update" || e.type === "destroy") && e.response) {
+                        showSuccessToast("Line saved");
+                    }
+                });
+
+                return lineDs;
             }
 
             var dataSource = new kendo.data.DataSource({
@@ -50,11 +161,6 @@
                         dataType: "json"
                     },
                     parameterMap: function (data, type) {
-                        function asNumber(value) {
-                            var n = Number(value);
-                            return Number.isFinite(n) ? n : null;
-                        }
-
                         if (type === "create" || type === "update") {
                             var payload = {
                                 AdjustmentId: asNumber(data.adjustmentId),
@@ -134,7 +240,34 @@
                 toolbar: ["create"],
                 pageable: true,
                 sortable: true,
-                filterable: true
+                filterable: true,
+                detailInit: function (e) {
+                    $('<div class="lines-grid"></div>').appendTo(e.detailCell).kendoGrid({
+                        dataSource: lineDataSource(e.data.adjustmentId),
+                        columns: [
+                            {
+                                field: "productId",
+                                title: "Product",
+                                editor: function (container, options) {
+                                    $('<input data-text-field="productName" data-value-field="productId" data-bind="value:' + options.field + '"/>')
+                                        .appendTo(container)
+                                        .kendoDropDownList({ dataSource: products, optionLabel: "Select..." });
+                                },
+                                template: function (dataItem) {
+                                    var item = products.data().find(function (x) { return x.productId === dataItem.productId; });
+                                    return item ? item.productName : "";
+                                }
+                            },
+                            { field: "countedQty", title: "Counted Qty", format: "{0:n2}" },
+                            { field: "systemQty", title: "System Qty", format: "{0:n2}" },
+                            { command: ["edit", "destroy"], title: "Actions", width: 180 }
+                        ],
+                        editable: "popup",
+                        toolbar: ["create"],
+                        pageable: false,
+                        sortable: true
+                    });
+                }
             });
 
             dataSource.bind("error", function (e) {
@@ -146,19 +279,15 @@
 
             dataSource.bind("requestEnd", function (e) {
                 if ((e.type === "create" || e.type === "update") && e.response) {
-                    Swal.fire({
-                        toast: true,
-                        position: "top-end",
-                        icon: "success",
-                        title: "Saved",
-                        showConfirmButton: false,
-                        timer: 1200,
-                        width: 280
-                    });
+                    showSuccessToast("Saved");
                 }
             });
 
             locations.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+
+            products.bind("change", function () {
                 $("#grid").data("kendoGrid").refresh();
             });
         });

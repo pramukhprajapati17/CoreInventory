@@ -61,4 +61,32 @@ public sealed class ProfileApiController : ControllerBase
         HttpContext.Session.SetString("c_full_name", model.FullName);
         return Ok(new { success = true, message = "Profile updated." });
     }
+
+    [HttpPut("password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel model, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new { success = false, message = "Please fill required fields." });
+        }
+
+        if (!string.Equals(model.NewPassword, model.ConfirmPassword, StringComparison.Ordinal))
+        {
+            return BadRequest(new { success = false, message = "Passwords do not match." });
+        }
+
+        if (!HttpContext.Session.TryGetValue("c_user_id", out var userIdBytes))
+        {
+            return Unauthorized(new { success = false, message = "Not logged in." });
+        }
+
+        var userId = long.Parse(System.Text.Encoding.UTF8.GetString(userIdBytes));
+        var updated = await _users.UpdatePasswordAsync(userId, model.CurrentPassword, model.NewPassword, cancellationToken);
+        if (!updated)
+        {
+            return BadRequest(new { success = false, message = "Current password is incorrect." });
+        }
+
+        return Ok(new { success = true, message = "Password changed." });
+    }
 }

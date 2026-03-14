@@ -33,14 +33,21 @@
             </div>
         </div>
         <div class="col-lg-6">
-            <div class="auth-visual h-100">
-                <h3 class="fw-bold">Inventory clarity, fast.</h3>
-                <p>Track receipts, deliveries, transfers, and adjustments in one place with real-time visibility.</p>
-                <ul class="mb-0">
-                    <li>Live stock snapshots</li>
-                    <li>Multi-warehouse ready</li>
-                    <li>Smart filters & alerts</li>
-                </ul>
+            <div class="card lottie-card h-100">
+                <div class="card-body p-4 p-lg-5 d-flex flex-column gap-3">
+                    <div class="lottie-frame">
+                        <iframe title="Inventory motion" src="https://lottie.host/embed/1315a0e9-c5d3-40fc-82e4-4266370b8535/4Qwe3325qi.lottie"></iframe>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold mb-2">Inventory clarity, fast.</h3>
+                        <p class="mb-3">Track receipts, deliveries, transfers, and adjustments in one place with real-time visibility.</p>
+                        <ul class="mb-0">
+                            <li>Live stock snapshots</li>
+                            <li>Multi-warehouse ready</li>
+                            <li>Smart filters & alerts</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -117,7 +124,17 @@
                     data: formData,
                     success: function (res) {
                         if (res && res.success) {
-                            window.location.href = "/Home/Index";
+                            Swal.fire({
+                                toast: true,
+                                position: "top-end",
+                                icon: "success",
+                                title: "Login successful",
+                                showConfirmButton: false,
+                                timer: 1200,
+                                width: 280
+                            }).then(function () {
+                                window.location.href = "/Home/Index";
+                            });
                         } else {
                             Swal.fire({ icon: "error", title: "Login failed", text: res.message || "Invalid credentials." });
                         }

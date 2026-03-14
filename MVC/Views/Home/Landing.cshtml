@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Welcome";
+}
+
+<section class="landing-hero">
+    <div class="landing-hero-text">
+        <span class="landing-pill">CoreInventory</span>
+        <h1>Inventory clarity, fast.</h1>
+        <p>
+            Track receipts, deliveries, transfers, and adjustments in one place with real-time visibility.
+            Stay ahead with live stock snapshots, multi-warehouse controls, and smart alerts.
+        </p>
+        <div class="landing-actions">
+            <a class="btn btn-primary btn-lg" asp-controller="Account" asp-action="Signup">Get Started</a>
+            <a class="btn btn-outline-dark btn-lg" asp-controller="Account" asp-action="Login">Login</a>
+        </div>
+        <div class="landing-metrics">
+            <div>
+                <div class="metric-value">Live</div>
+                <div class="metric-label">Stock snapshots</div>
+            </div>
+            <div>
+                <div class="metric-value">Multi</div>
+                <div class="metric-label">Warehouse ready</div>
+            </div>
+            <div>
+                <div class="metric-value">Smart</div>
+                <div class="metric-label">Filters & alerts</div>
+            </div>
+        </div>
+    </div>
+    <div class="landing-hero-card">
+        <div class="lottie-frame">
+            <iframe title="Inventory motion" src="https://lottie.host/embed/1315a0e9-c5d3-40fc-82e4-4266370b8535/4Qwe3325qi.lottie"></iframe>
+        </div>
+        <div class="landing-card-body">
+            <h3>Command center</h3>
+            <p>Monitor movement, reconcile inventory, and keep teams aligned in minutes.</p>
+        </div>
+    </div>
+</section>
+
+<section class="landing-grid">
+    <div class="landing-feature">
+        <h4>Receipts & Deliveries</h4>
+        <p>Create inbound and outbound operations with line items and status tracking.</p>
+    </div>
+    <div class="landing-feature">
+        <h4>Transfers & Adjustments</h4>
+        <p>Move stock internally and correct counts with audit-friendly history.</p>
+    </div>
+    <div class="landing-feature">
+        <h4>Stock Visibility</h4>
+        <p>Check availability per location and surface low stock alerts.</p>
+    </div>
+    <div class="landing-feature">
+        <h4>Operational Speed</h4>
+        <p>Search, filter, and sort quickly across every movement and SKU.</p>
+    </div>
+</section>
+
+<section class="landing-cta">
+    <div>
+        <h2>Ready to move faster?</h2>
+        <p>Set up your inventory workspace and start tracking today.</p>
+    </div>
+    <a class="btn btn-primary btn-lg" asp-controller="Account" asp-action="Signup">Create Account</a>
+</section>

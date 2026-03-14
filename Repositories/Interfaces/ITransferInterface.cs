@@ -9,4 +9,8 @@ public interface ITransferInterface
     Task<IReadOnlyList<TransferRecord>> ListAsync(CancellationToken cancellationToken = default);
     Task<bool> UpdateAsync(TransferRecord transfer, CancellationToken cancellationToken = default);
     Task<bool> UpdateStatusAsync(long id, string status, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TransferLineRecord>> ListLinesAsync(long transferId, CancellationToken cancellationToken = default);
+    Task<long> AddLineAsync(TransferLineRecord line, CancellationToken cancellationToken = default);
+    Task<bool> UpdateLineAsync(TransferLineRecord line, CancellationToken cancellationToken = default);
+    Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default);
 }

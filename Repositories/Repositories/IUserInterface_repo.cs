@@ -138,4 +138,24 @@ public sealed class IUserInterface_repo : IUserInterface
         command.Parameters.AddWithValue("@password", string.IsNullOrWhiteSpace(password) ? DBNull.Value : password);
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
+
+    public async Task<bool> UpdatePasswordAsync(long userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            update t_user
+            set c_password = @new_password,
+                c_updated_at = now()
+            where c_user_id = @id
+              and c_password = @current_password;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", userId);
+        command.Parameters.AddWithValue("@current_password", currentPassword);
+        command.Parameters.AddWithValue("@new_password", newPassword);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
 }

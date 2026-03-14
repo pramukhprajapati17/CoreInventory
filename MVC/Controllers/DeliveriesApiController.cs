@@ -51,4 +51,45 @@ public sealed class DeliveriesApiController : ControllerBase
 
         return Ok(delivery);
     }
+
+    [HttpGet("{id:long}/lines")]
+    public async Task<IActionResult> Lines(long id, CancellationToken cancellationToken)
+    {
+        var data = await _deliveries.ListLinesAsync(id, cancellationToken);
+        return Ok(data);
+    }
+
+    [HttpPost("{id:long}/lines")]
+    public async Task<IActionResult> AddLine(long id, [FromBody] DeliveryLineRecord line, CancellationToken cancellationToken)
+    {
+        line.DeliveryId = id;
+        var lineId = await _deliveries.AddLineAsync(line, cancellationToken);
+        line.DeliveryLineId = lineId;
+        return Ok(line);
+    }
+
+    [HttpPut("lines/{lineId:long}")]
+    public async Task<IActionResult> UpdateLine(long lineId, [FromBody] DeliveryLineRecord line, CancellationToken cancellationToken)
+    {
+        line.DeliveryLineId = lineId;
+        var updated = await _deliveries.UpdateLineAsync(line, cancellationToken);
+        if (!updated)
+        {
+            return NotFound(new { success = false, message = "Line not found." });
+        }
+
+        return Ok(line);
+    }
+
+    [HttpDelete("lines/{lineId:long}")]
+    public async Task<IActionResult> DeleteLine(long lineId, CancellationToken cancellationToken)
+    {
+        var deleted = await _deliveries.DeleteLineAsync(lineId, cancellationToken);
+        if (!deleted)
+        {
+            return NotFound(new { success = false, message = "Line not found." });
+        }
+
+        return Ok(new { success = true });
+    }
 }

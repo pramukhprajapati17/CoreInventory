@@ -178,4 +178,86 @@ public sealed class IReceiptInterface_repo : IReceiptInterface
         command.Parameters.AddWithValue("@status", status);
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
+
+    public async Task<IReadOnlyList<ReceiptLineRecord>> ListLinesAsync(long receiptId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            select c_receipt_line_id, c_receipt_id, c_product_id, c_location_id, c_qty
+            from t_receipt_line
+            where c_receipt_id = @id;
+            """;
+
+        var results = new List<ReceiptLineRecord>();
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", receiptId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new ReceiptLineRecord
+            {
+                ReceiptLineId = reader.GetInt64(0),
+                ReceiptId = reader.GetInt64(1),
+                ProductId = reader.GetInt64(2),
+                LocationId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                Quantity = reader.GetDecimal(4),
+            });
+        }
+
+        return results;
+    }
+
+    public async Task<long> AddLineAsync(ReceiptLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            insert into t_receipt_line (c_receipt_id, c_product_id, c_location_id, c_qty)
+            values (@receipt_id, @product_id, @location_id, @qty)
+            returning c_receipt_line_id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@receipt_id", line.ReceiptId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@qty", line.Quantity);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is long id ? id : Convert.ToInt64(result);
+    }
+
+    public async Task<bool> UpdateLineAsync(ReceiptLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            update t_receipt_line
+            set c_product_id = @product_id,
+                c_location_id = @location_id,
+                c_qty = @qty
+            where c_receipt_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", line.ReceiptLineId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@qty", line.Quantity);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            delete from t_receipt_line
+            where c_receipt_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", lineId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
 }

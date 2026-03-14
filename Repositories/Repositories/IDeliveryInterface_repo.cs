@@ -178,4 +178,86 @@ public sealed class IDeliveryInterface_repo : IDeliveryInterface
         command.Parameters.AddWithValue("@status", status);
         return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
+
+    public async Task<IReadOnlyList<DeliveryLineRecord>> ListLinesAsync(long deliveryId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            select c_delivery_line_id, c_delivery_id, c_product_id, c_location_id, c_qty
+            from t_delivery_line
+            where c_delivery_id = @id;
+            """;
+
+        var results = new List<DeliveryLineRecord>();
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", deliveryId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new DeliveryLineRecord
+            {
+                DeliveryLineId = reader.GetInt64(0),
+                DeliveryId = reader.GetInt64(1),
+                ProductId = reader.GetInt64(2),
+                LocationId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                Quantity = reader.GetDecimal(4),
+            });
+        }
+
+        return results;
+    }
+
+    public async Task<long> AddLineAsync(DeliveryLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            insert into t_delivery_line (c_delivery_id, c_product_id, c_location_id, c_qty)
+            values (@delivery_id, @product_id, @location_id, @qty)
+            returning c_delivery_line_id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@delivery_id", line.DeliveryId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@qty", line.Quantity);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is long id ? id : Convert.ToInt64(result);
+    }
+
+    public async Task<bool> UpdateLineAsync(DeliveryLineRecord line, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            update t_delivery_line
+            set c_product_id = @product_id,
+                c_location_id = @location_id,
+                c_qty = @qty
+            where c_delivery_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", line.DeliveryLineId);
+        command.Parameters.AddWithValue("@product_id", line.ProductId);
+        command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@qty", line.Quantity);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
+    public async Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            delete from t_delivery_line
+            where c_delivery_line_id = @id;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@id", lineId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
 }
