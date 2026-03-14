@@ -63,22 +63,36 @@ public sealed class TransfersApiController : ControllerBase
     public async Task<IActionResult> AddLine(long id, [FromBody] TransferLineRecord line, CancellationToken cancellationToken)
     {
         line.TransferId = id;
-        var lineId = await _transfers.AddLineAsync(line, cancellationToken);
-        line.TransferLineId = lineId;
-        return Ok(line);
+        try
+        {
+            var lineId = await _transfers.AddLineAsync(line, cancellationToken);
+            line.TransferLineId = lineId;
+            return Ok(line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPut("lines/{lineId:long}")]
     public async Task<IActionResult> UpdateLine(long lineId, [FromBody] TransferLineRecord line, CancellationToken cancellationToken)
     {
         line.TransferLineId = lineId;
-        var updated = await _transfers.UpdateLineAsync(line, cancellationToken);
-        if (!updated)
+        try
         {
-            return NotFound(new { success = false, message = "Line not found." });
-        }
+            var updated = await _transfers.UpdateLineAsync(line, cancellationToken);
+            if (!updated)
+            {
+                return NotFound(new { success = false, message = "Line not found." });
+            }
 
-        return Ok(line);
+            return Ok(line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpDelete("lines/{lineId:long}")]

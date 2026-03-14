@@ -218,17 +218,32 @@ public sealed class IReceiptInterface_repo : IReceiptInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("@receipt_id", line.ReceiptId);
         command.Parameters.AddWithValue("@product_id", line.ProductId);
         command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
         command.Parameters.AddWithValue("@qty", line.Quantity);
         var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is long id ? id : Convert.ToInt64(result);
+        var lineId = result is long id ? id : Convert.ToInt64(result);
+
+        if (line.LocationId.HasValue)
+        {
+            await ApplyStockChangeAsync(connection, transaction, line.ProductId, line.LocationId.Value, line.Quantity, "receipt", line.ReceiptId, cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return lineId;
     }
 
     public async Task<bool> UpdateLineAsync(ReceiptLineRecord line, CancellationToken cancellationToken = default)
     {
+        const string selectSql = """
+            select c_product_id, c_location_id, c_qty, c_receipt_id
+            from t_receipt_line
+            where c_receipt_line_id = @id;
+            """;
+
         const string sql = """
             update t_receipt_line
             set c_product_id = @product_id,
@@ -239,16 +254,72 @@ public sealed class IReceiptInterface_repo : IReceiptInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@id", line.ReceiptLineId);
-        command.Parameters.AddWithValue("@product_id", line.ProductId);
-        command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
-        command.Parameters.AddWithValue("@qty", line.Quantity);
-        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        long oldProductId;
+        long? oldLocationId;
+        decimal oldQty;
+        long receiptId;
+        await using (var selectCommand = new NpgsqlCommand(selectSql, connection, transaction))
+        {
+            selectCommand.Parameters.AddWithValue("@id", line.ReceiptLineId);
+            await using var reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return false;
+            }
+            oldProductId = reader.GetInt64(0);
+            oldLocationId = reader.IsDBNull(1) ? null : reader.GetInt64(1);
+            oldQty = reader.GetDecimal(2);
+            receiptId = reader.GetInt64(3);
+        }
+
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue("@id", line.ReceiptLineId);
+            command.Parameters.AddWithValue("@product_id", line.ProductId);
+            command.Parameters.AddWithValue("@location_id", (object?)line.LocationId ?? DBNull.Value);
+            command.Parameters.AddWithValue("@qty", line.Quantity);
+            var updated = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+            if (!updated)
+            {
+                return false;
+            }
+        }
+
+        if (oldLocationId.HasValue && (oldProductId != line.ProductId || oldLocationId != line.LocationId))
+        {
+            await ApplyStockChangeAsync(connection, transaction, oldProductId, oldLocationId.Value, -oldQty, "receipt", receiptId, cancellationToken);
+        }
+
+        if (line.LocationId.HasValue)
+        {
+            if (oldProductId == line.ProductId && oldLocationId == line.LocationId)
+            {
+                var delta = line.Quantity - oldQty;
+                if (delta != 0)
+                {
+                    await ApplyStockChangeAsync(connection, transaction, line.ProductId, line.LocationId.Value, delta, "receipt", receiptId, cancellationToken);
+                }
+            }
+            else
+            {
+                await ApplyStockChangeAsync(connection, transaction, line.ProductId, line.LocationId.Value, line.Quantity, "receipt", receiptId, cancellationToken);
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     public async Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default)
     {
+        const string selectSql = """
+            select c_product_id, c_location_id, c_qty, c_receipt_id
+            from t_receipt_line
+            where c_receipt_line_id = @id;
+            """;
+
         const string sql = """
             delete from t_receipt_line
             where c_receipt_line_id = @id;
@@ -256,8 +327,83 @@ public sealed class IReceiptInterface_repo : IReceiptInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@id", lineId);
-        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        long productId;
+        long? locationId;
+        decimal qty;
+        long receiptId;
+        await using (var selectCommand = new NpgsqlCommand(selectSql, connection, transaction))
+        {
+            selectCommand.Parameters.AddWithValue("@id", lineId);
+            await using var reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return false;
+            }
+            productId = reader.GetInt64(0);
+            locationId = reader.IsDBNull(1) ? null : reader.GetInt64(1);
+            qty = reader.GetDecimal(2);
+            receiptId = reader.GetInt64(3);
+        }
+
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue("@id", lineId);
+            var deleted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+            if (!deleted)
+            {
+                return false;
+            }
+        }
+
+        if (locationId.HasValue)
+        {
+            await ApplyStockChangeAsync(connection, transaction, productId, locationId.Value, -qty, "receipt", receiptId, cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private static async Task ApplyStockChangeAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long productId,
+        long locationId,
+        decimal qtyChange,
+        string docType,
+        long docId,
+        CancellationToken cancellationToken)
+    {
+        const string stockSql = """
+            insert into t_stock (c_product_id, c_location_id, c_qty)
+            values (@product_id, @location_id, @qty)
+            on conflict (c_product_id, c_location_id)
+            do update set c_qty = t_stock.c_qty + excluded.c_qty;
+            """;
+
+        const string ledgerSql = """
+            insert into t_stock_ledger (c_product_id, c_location_id, c_doc_type, c_doc_id, c_qty_change)
+            values (@product_id, @location_id, @doc_type, @doc_id, @qty_change);
+            """;
+
+        await using (var stockCommand = new NpgsqlCommand(stockSql, connection, transaction))
+        {
+            stockCommand.Parameters.AddWithValue("@product_id", productId);
+            stockCommand.Parameters.AddWithValue("@location_id", locationId);
+            stockCommand.Parameters.AddWithValue("@qty", qtyChange);
+            await stockCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var ledgerCommand = new NpgsqlCommand(ledgerSql, connection, transaction))
+        {
+            ledgerCommand.Parameters.AddWithValue("@product_id", productId);
+            ledgerCommand.Parameters.AddWithValue("@location_id", locationId);
+            ledgerCommand.Parameters.AddWithValue("@doc_type", docType);
+            ledgerCommand.Parameters.AddWithValue("@doc_id", docId);
+            ledgerCommand.Parameters.AddWithValue("@qty_change", qtyChange);
+            await ledgerCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 }

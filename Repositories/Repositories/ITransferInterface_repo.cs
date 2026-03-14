@@ -215,16 +215,31 @@ public sealed class ITransferInterface_repo : ITransferInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var (fromLocationId, toLocationId) = await GetTransferLocationsAsync(connection, transaction, line.TransferId, cancellationToken);
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("@transfer_id", line.TransferId);
         command.Parameters.AddWithValue("@product_id", line.ProductId);
         command.Parameters.AddWithValue("@qty", line.Quantity);
         var result = await command.ExecuteScalarAsync(cancellationToken);
-        return result is long id ? id : Convert.ToInt64(result);
+        var lineId = result is long id ? id : Convert.ToInt64(result);
+
+        await ApplyTransferStockAsync(connection, transaction, line.ProductId, fromLocationId, toLocationId, line.Quantity, "transfer", line.TransferId, cancellationToken, enforceNonNegative: true);
+
+        await transaction.CommitAsync(cancellationToken);
+        return lineId;
     }
 
     public async Task<bool> UpdateLineAsync(TransferLineRecord line, CancellationToken cancellationToken = default)
     {
+        const string selectSql = """
+            select c_product_id, c_qty, c_transfer_id
+            from t_transfer_line
+            where c_transfer_line_id = @id;
+            """;
+
         const string sql = """
             update t_transfer_line
             set c_product_id = @product_id,
@@ -234,15 +249,64 @@ public sealed class ITransferInterface_repo : ITransferInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@id", line.TransferLineId);
-        command.Parameters.AddWithValue("@product_id", line.ProductId);
-        command.Parameters.AddWithValue("@qty", line.Quantity);
-        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        long oldProductId;
+        decimal oldQty;
+        long transferId;
+        await using (var selectCommand = new NpgsqlCommand(selectSql, connection, transaction))
+        {
+            selectCommand.Parameters.AddWithValue("@id", line.TransferLineId);
+            await using var reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return false;
+            }
+            oldProductId = reader.GetInt64(0);
+            oldQty = reader.GetDecimal(1);
+            transferId = reader.GetInt64(2);
+        }
+
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue("@id", line.TransferLineId);
+            command.Parameters.AddWithValue("@product_id", line.ProductId);
+            command.Parameters.AddWithValue("@qty", line.Quantity);
+            var updated = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+            if (!updated)
+            {
+                return false;
+            }
+        }
+
+        var (fromLocationId, toLocationId) = await GetTransferLocationsAsync(connection, transaction, transferId, cancellationToken);
+
+        if (oldProductId == line.ProductId)
+        {
+            var delta = line.Quantity - oldQty;
+            if (delta != 0)
+            {
+                await ApplyTransferStockAsync(connection, transaction, line.ProductId, fromLocationId, toLocationId, delta, "transfer", transferId, cancellationToken, enforceNonNegative: true);
+            }
+        }
+        else
+        {
+            await ApplyTransferStockAsync(connection, transaction, oldProductId, fromLocationId, toLocationId, -oldQty, "transfer", transferId, cancellationToken, enforceNonNegative: true);
+            await ApplyTransferStockAsync(connection, transaction, line.ProductId, fromLocationId, toLocationId, line.Quantity, "transfer", transferId, cancellationToken, enforceNonNegative: true);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     public async Task<bool> DeleteLineAsync(long lineId, CancellationToken cancellationToken = default)
     {
+        const string selectSql = """
+            select c_product_id, c_qty, c_transfer_id
+            from t_transfer_line
+            where c_transfer_line_id = @id;
+            """;
+
         const string sql = """
             delete from t_transfer_line
             where c_transfer_line_id = @id;
@@ -250,8 +314,155 @@ public sealed class ITransferInterface_repo : ITransferInterface
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@id", lineId);
-        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        long productId;
+        decimal qty;
+        long transferId;
+        await using (var selectCommand = new NpgsqlCommand(selectSql, connection, transaction))
+        {
+            selectCommand.Parameters.AddWithValue("@id", lineId);
+            await using var reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return false;
+            }
+            productId = reader.GetInt64(0);
+            qty = reader.GetDecimal(1);
+            transferId = reader.GetInt64(2);
+        }
+
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue("@id", lineId);
+            var deleted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+            if (!deleted)
+            {
+                return false;
+            }
+        }
+
+        var (fromLocationId, toLocationId) = await GetTransferLocationsAsync(connection, transaction, transferId, cancellationToken);
+        await ApplyTransferStockAsync(connection, transaction, productId, fromLocationId, toLocationId, -qty, "transfer", transferId, cancellationToken, enforceNonNegative: true);
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private static async Task<(long fromLocationId, long toLocationId)> GetTransferLocationsAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long transferId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select c_from_location_id, c_to_location_id
+            from t_transfer
+            where c_transfer_id = @id;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("@id", transferId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Transfer header not found.");
+        }
+        var fromLocationId = reader.GetInt64(0);
+        var toLocationId = reader.GetInt64(1);
+        return (fromLocationId, toLocationId);
+    }
+
+    private static async Task ApplyTransferStockAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long productId,
+        long fromLocationId,
+        long toLocationId,
+        decimal qtyChange,
+        string docType,
+        long docId,
+        CancellationToken cancellationToken,
+        bool enforceNonNegative)
+    {
+        await ApplyStockChangeAsync(connection, transaction, productId, fromLocationId, -qtyChange, docType, docId, cancellationToken, enforceNonNegative);
+        await ApplyStockChangeAsync(connection, transaction, productId, toLocationId, qtyChange, docType, docId, cancellationToken, enforceNonNegative: false);
+    }
+
+    private static async Task ApplyStockChangeAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long productId,
+        long locationId,
+        decimal qtyChange,
+        string docType,
+        long docId,
+        CancellationToken cancellationToken,
+        bool enforceNonNegative)
+    {
+        if (enforceNonNegative && qtyChange < 0)
+        {
+            var available = await GetCurrentStockAsync(connection, transaction, productId, locationId, cancellationToken);
+            if (available + qtyChange < 0)
+            {
+                throw new InvalidOperationException("Insufficient stock for this transfer.");
+            }
+        }
+
+        const string stockSql = """
+            insert into t_stock (c_product_id, c_location_id, c_qty)
+            values (@product_id, @location_id, @qty)
+            on conflict (c_product_id, c_location_id)
+            do update set c_qty = t_stock.c_qty + excluded.c_qty;
+            """;
+
+        const string ledgerSql = """
+            insert into t_stock_ledger (c_product_id, c_location_id, c_doc_type, c_doc_id, c_qty_change)
+            values (@product_id, @location_id, @doc_type, @doc_id, @qty_change);
+            """;
+
+        await using (var stockCommand = new NpgsqlCommand(stockSql, connection, transaction))
+        {
+            stockCommand.Parameters.AddWithValue("@product_id", productId);
+            stockCommand.Parameters.AddWithValue("@location_id", locationId);
+            stockCommand.Parameters.AddWithValue("@qty", qtyChange);
+            await stockCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var ledgerCommand = new NpgsqlCommand(ledgerSql, connection, transaction))
+        {
+            ledgerCommand.Parameters.AddWithValue("@product_id", productId);
+            ledgerCommand.Parameters.AddWithValue("@location_id", locationId);
+            ledgerCommand.Parameters.AddWithValue("@doc_type", docType);
+            ledgerCommand.Parameters.AddWithValue("@doc_id", docId);
+            ledgerCommand.Parameters.AddWithValue("@qty_change", qtyChange);
+            await ledgerCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private static async Task<decimal> GetCurrentStockAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long productId,
+        long locationId,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select c_qty
+            from t_stock
+            where c_product_id = @product_id and c_location_id = @location_id
+            for update;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("@product_id", productId);
+        command.Parameters.AddWithValue("@location_id", locationId);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        if (result is null || result is DBNull)
+        {
+            return 0m;
+        }
+
+        return Convert.ToDecimal(result);
     }
 }

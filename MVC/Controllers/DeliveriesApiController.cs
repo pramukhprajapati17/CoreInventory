@@ -63,22 +63,36 @@ public sealed class DeliveriesApiController : ControllerBase
     public async Task<IActionResult> AddLine(long id, [FromBody] DeliveryLineRecord line, CancellationToken cancellationToken)
     {
         line.DeliveryId = id;
-        var lineId = await _deliveries.AddLineAsync(line, cancellationToken);
-        line.DeliveryLineId = lineId;
-        return Ok(line);
+        try
+        {
+            var lineId = await _deliveries.AddLineAsync(line, cancellationToken);
+            line.DeliveryLineId = lineId;
+            return Ok(line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPut("lines/{lineId:long}")]
     public async Task<IActionResult> UpdateLine(long lineId, [FromBody] DeliveryLineRecord line, CancellationToken cancellationToken)
     {
         line.DeliveryLineId = lineId;
-        var updated = await _deliveries.UpdateLineAsync(line, cancellationToken);
-        if (!updated)
+        try
         {
-            return NotFound(new { success = false, message = "Line not found." });
-        }
+            var updated = await _deliveries.UpdateLineAsync(line, cancellationToken);
+            if (!updated)
+            {
+                return NotFound(new { success = false, message = "Line not found." });
+            }
 
-        return Ok(line);
+            return Ok(line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpDelete("lines/{lineId:long}")]

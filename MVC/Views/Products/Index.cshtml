@@ -73,15 +73,27 @@
                         dataType: "json"
                     },
                     parameterMap: function (data, type) {
+                        function asNumber(value) {
+                            if (value === "" || value === null || value === undefined) {
+                                return null;
+                            }
+                            var n = Number(value);
+                            return Number.isFinite(n) ? n : null;
+                        }
+
                         if (type === "create" || type === "update") {
-                            return kendo.stringify({
-                                ProductId: data.productId,
+                            var payload = {
+                                ProductId: asNumber(data.productId),
                                 ProductName: data.productName,
                                 Sku: data.sku,
-                                CategoryId: data.categoryId,
-                                UomId: data.uomId,
+                                CategoryId: asNumber(data.categoryId),
+                                UomId: asNumber(data.uomId),
                                 IsActive: data.isActive
-                            });
+                            };
+                            if (type === "create") {
+                                delete payload.ProductId;
+                            }
+                            return kendo.stringify(payload);
                         }
                         if (type === "destroy") {
                             return kendo.stringify({ ProductId: data.productId });
@@ -123,7 +135,7 @@
                         editor: function (container, options) {
                             $('<input data-text-field="categoryName" data-value-field="categoryId" data-bind="value:' + options.field + '"/>')
                                 .appendTo(container)
-                                .kendoDropDownList({ dataSource: categories, optionLabel: "Select..." });
+                                .kendoDropDownList({ dataSource: categories, optionLabel: "Select...", valuePrimitive: true });
                         },
                         template: function (dataItem) {
                             var item = categories.data().find(function (x) { return x.categoryId === dataItem.categoryId; });
@@ -136,7 +148,7 @@
                         editor: function (container, options) {
                             $('<input data-text-field="uomName" data-value-field="uomId" data-bind="value:' + options.field + '"/>')
                                 .appendTo(container)
-                                .kendoDropDownList({ dataSource: uoms, optionLabel: "Select..." });
+                                .kendoDropDownList({ dataSource: uoms, optionLabel: "Select...", valuePrimitive: true });
                         },
                         template: function (dataItem) {
                             var item = uoms.data().find(function (x) { return x.uomId === dataItem.uomId; });

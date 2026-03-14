@@ -34,13 +34,19 @@
             </select>
         </div>
         <div class="col-md-3">
-            <input id="filterWarehouse" class="form-control" placeholder="Warehouse Id" />
+            <select id="filterWarehouse" class="form-select">
+                <option value="">Warehouse</option>
+            </select>
         </div>
         <div class="col-md-3">
-            <input id="filterLocation" class="form-control" placeholder="Location Id" />
+            <select id="filterLocation" class="form-select">
+                <option value="">Location</option>
+            </select>
         </div>
         <div class="col-md-3">
-            <input id="filterCategory" class="form-control" placeholder="Category Id" />
+            <select id="filterCategory" class="form-select">
+                <option value="">Category</option>
+            </select>
         </div>
         <div class="col-md-3">
             <button id="applyFilters" class="btn btn-outline-primary w-100">Apply Filters</button>
@@ -50,37 +56,37 @@
 
 <div class="row g-3 mb-4">
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Products/Index">
             <div class="text-muted">Total Products</div>
             <div class="kpi-value" id="kpiTotal">0</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Stock/Alerts">
             <div class="text-muted">Low Stock</div>
             <div class="kpi-value kpi-warn" id="kpiLow">0</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Stock/Alerts">
             <div class="text-muted">Out of Stock</div>
             <div class="kpi-value kpi-warn" id="kpiOut">0</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Receipts/Index">
             <div class="text-muted">Pending Receipts</div>
             <div class="kpi-value" id="kpiReceipts">0</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Deliveries/Index">
             <div class="text-muted">Pending Deliveries</div>
             <div class="kpi-value" id="kpiDeliveries">0</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-kpi p-3">
+        <div class="card card-kpi p-3 kpi-link" data-link="/Transfers/Index">
             <div class="text-muted">Internal Transfers</div>
             <div class="kpi-value" id="kpiTransfers">0</div>
         </div>
@@ -88,13 +94,13 @@
 </div>
 
 <div class="row g-3">
-    <div class="col-lg-7">
+    <div class="col-12">
         <div class="card section-card p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h5 class="mb-0">Activity Snapshot</h5>
                 <span class="badge bg-light text-dark">Today</span>
             </div>
-            <div class="table-responsive">
+            <div class="table-responsive activity-scroll">
                 <table class="table align-middle">
                     <thead>
                         <tr>
@@ -105,58 +111,94 @@
                             <th class="text-end">Qty</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td>Receipt</td>
-                            <td>RC-1092</td>
-                            <td><span class="badge bg-warning text-dark">Waiting</span></td>
-                            <td>Main</td>
-                            <td class="text-end">120</td>
-                        </tr>
-                        <tr>
-                            <td>Delivery</td>
-                            <td>DL-4412</td>
-                            <td><span class="badge bg-primary">Ready</span></td>
-                            <td>Warehouse 1</td>
-                            <td class="text-end">40</td>
-                        </tr>
-                        <tr>
-                            <td>Transfer</td>
-                            <td>TR-3321</td>
-                            <td><span class="badge bg-secondary">Draft</span></td>
-                            <td>Main</td>
-                            <td class="text-end">15</td>
-                        </tr>
-                        <tr>
-                            <td>Adjustment</td>
-                            <td>AD-0094</td>
-                            <td><span class="badge bg-success">Done</span></td>
-                            <td>Warehouse 2</td>
-                            <td class="text-end">-3</td>
-                        </tr>
-                    </tbody>
+                    <tbody id="activityBody"></tbody>
                 </table>
             </div>
         </div>
     </div>
-    <div class="col-lg-5">
-        <div class="card section-card p-4 mb-3">
-            <h5 class="mb-3">Alerts</h5>
-            <ul class="mb-0">
-                <li>Low stock: Steel Rods (12 units)</li>
-                <li>Out of stock: Packing Tape</li>
-                <li>Transfer pending: Warehouse 1 → Main</li>
-            </ul>
+</div>
+
+<div class="row g-3 mt-4">
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Stock by Warehouse</h5>
+                <span class="text-muted small">Live snapshot</span>
+            </div>
+            <div id="stockByWarehouseChart" style="height: 280px;"></div>
         </div>
-        <div class="card section-card p-4">
-            <h5 class="mb-3">Weekly Overview</h5>
-            <p class="mb-0">Operations are running smoothly across all warehouses. Pending deliveries are within SLA.</p>
+    </div>
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Stock Health</h5>
+                <span class="text-muted small">Low vs Out</span>
+            </div>
+            <div id="stockHealthChart" style="height: 280px;"></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Pending Operations</h5>
+                <span class="text-muted small">Receipts / Deliveries / Transfers</span>
+            </div>
+            <div id="pendingOpsChart" style="height: 280px;"></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card section-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Stock by Category</h5>
+                <span class="text-muted small">Top categories</span>
+            </div>
+            <div id="stockByCategoryChart" style="height: 280px;"></div>
         </div>
     </div>
 </div>
 
 @section Scripts {
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css" />
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.default.min.css" />
+    <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
     <script>
+        var warehouses = [];
+        var locations = [];
+        var categories = [];
+
+        function fillSelect(selector, items, valueKey, textKey, placeholder) {
+            var $select = $(selector);
+            $select.empty();
+            $select.append($("<option>").val("").text(placeholder));
+            items.forEach(function (item) {
+                $select.append($("<option>").val(item[valueKey]).text(item[textKey]));
+            });
+        }
+
+        function loadFilters() {
+            return $.when(
+                $.getJSON("/api/warehouses", function (data) {
+                    warehouses = data.map(function (x) {
+                        return { id: x.warehouseId ?? x.WarehouseId, name: x.warehouseName ?? x.WarehouseName };
+                    });
+                }),
+                $.getJSON("/api/locations/all", function (data) {
+                    locations = data.map(function (x) {
+                        return { id: x.locationId ?? x.LocationId, name: x.locationName ?? x.LocationName, warehouseId: x.warehouseId ?? x.WarehouseId };
+                    });
+                }),
+                $.getJSON("/api/categories", function (data) {
+                    categories = data.map(function (x) {
+                        return { id: x.categoryId ?? x.CategoryId, name: x.categoryName ?? x.CategoryName };
+                    });
+                })
+            ).then(function () {
+                fillSelect("#filterWarehouse", warehouses, "id", "name", "Warehouse");
+                fillSelect("#filterCategory", categories, "id", "name", "Category");
+                fillSelect("#filterLocation", locations, "id", "name", "Location");
+            });
+        }
+
         function loadKpis() {
             var params = {
                 docType: $("#filterDocType").val(),
@@ -176,11 +218,246 @@
             });
         }
 
+        function loadStockByWarehouseChart() {
+            return $.getJSON("/api/stock/availability", function (rows) {
+                var totals = {};
+                rows.forEach(function (row) {
+                    var name = row.warehouseName || row.WarehouseName || "Unknown";
+                    var qty = Number(row.qty || row.Qty || 0);
+                    totals[name] = (totals[name] || 0) + qty;
+                });
+
+                var data = Object.keys(totals).map(function (key) {
+                    return { warehouse: key, qty: totals[key] };
+                });
+
+                $("#stockByWarehouseChart").kendoChart({
+                    dataSource: { data: data },
+                    legend: { position: "bottom" },
+                    series: [{
+                        type: "column",
+                        field: "qty",
+                        categoryField: "warehouse",
+                        color: "#3f7bff"
+                    }],
+                    categoryAxis: { labels: { rotation: -15 } },
+                    valueAxis: { labels: { format: "{0:n0}" } },
+                    tooltip: { visible: true, format: "{0:n2}" }
+                });
+            });
+        }
+
+        function loadStockHealthChart(kpis) {
+            var data = [
+                { label: "Low Stock", value: kpis.lowStock || 0 },
+                { label: "Out of Stock", value: kpis.outOfStock || 0 }
+            ];
+
+            $("#stockHealthChart").kendoChart({
+                dataSource: { data: data },
+                legend: { position: "bottom" },
+                series: [{
+                    type: "donut",
+                    field: "value",
+                    categoryField: "label",
+                    color: function (point) {
+                        return point.dataItem.label === "Low Stock" ? "#ff9f9a" : "#29324a";
+                    }
+                }],
+                tooltip: { visible: true, template: "#= category #: #= value #" }
+            });
+        }
+
+        function loadPendingOpsChart(kpis) {
+            var data = [
+                { label: "Receipts", value: kpis.pendingReceipts || 0 },
+                { label: "Deliveries", value: kpis.pendingDeliveries || 0 },
+                { label: "Transfers", value: kpis.pendingTransfers || 0 }
+            ];
+
+            $("#pendingOpsChart").kendoChart({
+                dataSource: { data: data },
+                legend: { position: "bottom" },
+                series: [{
+                    type: "bar",
+                    field: "value",
+                    categoryField: "label",
+                    color: "#8fd3ff"
+                }],
+                valueAxis: { labels: { format: "{0:n0}" } },
+                tooltip: { visible: true, template: "#= category #: #= value #" }
+            });
+        }
+
+        function loadStockByCategoryChart() {
+            return $.when(
+                $.getJSON("/api/stock/availability"),
+                $.getJSON("/api/products"),
+                $.getJSON("/api/categories")
+            ).then(function (availabilityRes, productsRes, categoriesRes) {
+                var availability = availabilityRes[0] || [];
+                var products = productsRes[0] || [];
+                var categories = categoriesRes[0] || [];
+
+                var productMap = {};
+                products.forEach(function (p) {
+                    var productId = p.productId ?? p.ProductId;
+                    productMap[productId] = p.categoryId ?? p.CategoryId;
+                });
+
+                var categoryMap = {};
+                categories.forEach(function (c) {
+                    var categoryId = c.categoryId ?? c.CategoryId;
+                    categoryMap[categoryId] = c.categoryName ?? c.CategoryName;
+                });
+
+                var totals = {};
+                availability.forEach(function (row) {
+                    var productId = row.productId ?? row.ProductId;
+                    var categoryId = productMap[productId];
+                    var name = categoryMap[categoryId] || "Uncategorized";
+                    var qty = Number(row.qty || row.Qty || 0);
+                    totals[name] = (totals[name] || 0) + qty;
+                });
+
+                var data = Object.keys(totals).map(function (key) {
+                    return { category: key, qty: totals[key] };
+                });
+
+                $("#stockByCategoryChart").kendoChart({
+                    dataSource: { data: data },
+                    legend: { position: "bottom" },
+                    series: [{
+                        type: "column",
+                        field: "qty",
+                        categoryField: "category",
+                        color: "#ff9f9a"
+                    }],
+                    categoryAxis: { labels: { rotation: -15 } },
+                    valueAxis: { labels: { format: "{0:n0}" } },
+                    tooltip: { visible: true, format: "{0:n2}" }
+                });
+            });
+        }
+
+        function badgeForDocType(docType) {
+            switch ((docType || "").toLowerCase()) {
+                case "receipt": return "bg-success";
+                case "delivery": return "bg-warning text-dark";
+                case "transfer": return "bg-primary";
+                case "adjustment": return "bg-secondary";
+                default: return "bg-light text-dark";
+            }
+        }
+
+        function formatDate(dateValue) {
+            if (!dateValue) return "";
+            var d = new Date(dateValue);
+            if (Number.isNaN(d.getTime())) return "";
+            return d.toISOString().split("T")[0];
+        }
+
+        function loadActivitySnapshot() {
+            $.when(
+                $.getJSON("/api/movehistory"),
+                $.getJSON("/api/locations/all")
+            ).then(function (ledgerRes, locationsRes) {
+                var ledger = ledgerRes[0] || [];
+                var locations = locationsRes[0] || [];
+
+                var locationMap = {};
+                locations.forEach(function (l) {
+                    var id = l.locationId ?? l.LocationId;
+                    var name = l.locationName ?? l.LocationName;
+                    locationMap[id] = name;
+                });
+
+                var $body = $("#activityBody");
+                $body.empty();
+
+                if (!ledger.length) {
+                    $body.append('<tr><td colspan="5" class="text-muted">No activity yet.</td></tr>');
+                    return;
+                }
+
+                ledger.slice(0, 8).forEach(function (row) {
+                    var type = row.docType || row.DocType || "n/a";
+                    var ref = (row.docType || row.DocType || "DOC").toString().substring(0, 2).toUpperCase() + "-" + (row.docId || row.DocId);
+                    var locationId = row.locationId ?? row.LocationId;
+                    var locationName = locationMap[locationId] || "N/A";
+                    var qty = row.qtyChange ?? row.QtyChange ?? 0;
+
+                    var badgeClass = badgeForDocType(type);
+
+                    $body.append(
+                        "<tr>" +
+                        "<td>" + type + "</td>" +
+                        "<td>" + ref + "</td>" +
+                        "<td><span class=\"badge " + badgeClass + "\">" + formatDate(row.createdAt || row.CreatedAt) + "</span></td>" +
+                        "<td>" + locationName + "</td>" +
+                        "<td class=\"text-end\">" + Number(qty).toFixed(2) + "</td>" +
+                        "</tr>"
+                    );
+                });
+            });
+        }
+
         $(document).ready(function () {
-            loadKpis();
-            $("#applyFilters").on("click", function () {
+            loadFilters().then(function () {
                 loadKpis();
+            });
+            loadStockByWarehouseChart();
+            loadStockByCategoryChart();
+            loadActivitySnapshot();
+
+            $(".kpi-link").on("click", function () {
+                var link = $(this).data("link");
+                if (link) {
+                    window.location.href = link;
+                }
+            });
+
+            $("#filterWarehouse").on("change", function () {
+                var selected = $(this).val();
+                if (!selected) {
+                    fillSelect("#filterLocation", locations, "id", "name", "Location");
+                    return;
+                }
+                var filtered = locations.filter(function (x) { return String(x.warehouseId) === String(selected); });
+                fillSelect("#filterLocation", filtered, "id", "name", "Location");
+            });
+
+            $("#applyFilters").on("click", function () {
+                $.getJSON("/api/dashboard/kpis", {
+                    docType: $("#filterDocType").val(),
+                    status: $("#filterStatus").val(),
+                    warehouseId: $("#filterWarehouse").val(),
+                    locationId: $("#filterLocation").val(),
+                    categoryId: $("#filterCategory").val()
+                }, function (data) {
+                    $("#kpiTotal").text(data.totalProducts);
+                    $("#kpiLow").text(data.lowStock);
+                    $("#kpiOut").text(data.outOfStock);
+                    $("#kpiReceipts").text(data.pendingReceipts);
+                    $("#kpiDeliveries").text(data.pendingDeliveries);
+                    $("#kpiTransfers").text(data.pendingTransfers);
+                    loadStockHealthChart(data);
+                    loadPendingOpsChart(data);
+                });
+            });
+
+            $.getJSON("/api/dashboard/kpis", {
+                docType: $("#filterDocType").val(),
+                status: $("#filterStatus").val(),
+                warehouseId: $("#filterWarehouse").val(),
+                locationId: $("#filterLocation").val(),
+                categoryId: $("#filterCategory").val()
+            }, function (data) {
+                loadStockHealthChart(data);
+                loadPendingOpsChart(data);
             });
         });
     </script>
 }
+
+

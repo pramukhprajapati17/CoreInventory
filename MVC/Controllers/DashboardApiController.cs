@@ -85,15 +85,24 @@ public sealed class DashboardApiController : ControllerBase
         {
             "receipt" => """
                 select count(*) from t_receipt
-                where (@status::text is null or c_status = @status::text);
+                where (
+                    @status::text is null and c_status in ('Draft', 'Waiting', 'Ready')
+                    or @status::text is not null and c_status = @status::text
+                );
                 """,
             "delivery" => """
                 select count(*) from t_delivery
-                where (@status::text is null or c_status = @status::text);
+                where (
+                    @status::text is null and c_status in ('Draft', 'Waiting', 'Ready')
+                    or @status::text is not null and c_status = @status::text
+                );
                 """,
             "transfer" => """
                 select count(*) from t_transfer
-                where (@status::text is null or c_status = @status::text);
+                where (
+                    @status::text is null and c_status in ('Draft', 'Waiting', 'Ready')
+                    or @status::text is not null and c_status = @status::text
+                );
                 """,
             _ => "select 0;"
         };

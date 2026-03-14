@@ -11,6 +11,41 @@
     <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"></script>
     <script>
         $(document).ready(function () {
+            var products = new kendo.data.DataSource({
+                transport: { read: { url: "/api/products", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].ProductId !== undefined) {
+                            return response.map(function (x) {
+                                return { productId: x.ProductId, productName: x.ProductName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { productId: x.productId, productName: x.productName };
+                        });
+                    }
+                }
+            });
+
+            var locations = new kendo.data.DataSource({
+                transport: { read: { url: "/api/locations/all", dataType: "json" } },
+                schema: {
+                    data: function (response) {
+                        if (response && response.length && response[0].LocationId !== undefined) {
+                            return response.map(function (x) {
+                                return { locationId: x.LocationId, locationName: x.LocationName };
+                            });
+                        }
+                        return response.map(function (x) {
+                            return { locationId: x.locationId, locationName: x.locationName };
+                        });
+                    }
+                }
+            });
+
+            products.read();
+            locations.read();
+
             function toCamel(item) {
                 return {
                     reorderRuleId: item.ReorderRuleId,
@@ -75,7 +110,7 @@
                         id: "reorderRuleId",
                         fields: {
                             reorderRuleId: { type: "number", editable: false, nullable: true },
-                            productId: { type: "number", validation: { required: true } },
+                            productId: { type: "number", validation: { required: true, min: 1 } },
                             locationId: { type: "number" },
                             minQty: { type: "number", validation: { required: true } },
                             maxQty: { type: "number" },
@@ -89,8 +124,35 @@
                 dataSource: dataSource,
                 columns: [
                     { field: "reorderRuleId", title: "ID", width: 80 },
-                    { field: "productId", title: "Product Id" },
-                    { field: "locationId", title: "Location Id" },
+                    {
+                        field: "productId",
+                        title: "Product",
+                        editor: function (container, options) {
+                            $('<input data-text-field="productName" data-value-field="productId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: products, optionLabel: "Select..." });
+                        },
+                        template: function (dataItem) {
+                            var item = products.data().find(function (x) { return x.productId === dataItem.productId; });
+                            return item ? item.productName : "";
+                        }
+                    },
+                    {
+                        field: "locationId",
+                        title: "Location",
+                        editor: function (container, options) {
+                            $('<input data-text-field="locationName" data-value-field="locationId" data-bind="value:' + options.field + '"/>')
+                                .appendTo(container)
+                                .kendoDropDownList({ dataSource: locations, optionLabel: "Select (All)" });
+                        },
+                        template: function (dataItem) {
+                            if (!dataItem.locationId) {
+                                return "All";
+                            }
+                            var item = locations.data().find(function (x) { return x.locationId === dataItem.locationId; });
+                            return item ? item.locationName : "";
+                        }
+                    },
                     { field: "minQty", title: "Min Qty" },
                     { field: "maxQty", title: "Max Qty" },
                     { field: "isActive", title: "Active", width: 120 },
@@ -122,6 +184,24 @@
                         width: 280
                     });
                 }
+            });
+
+            dataSource.bind("requestStart", function (e) {
+                if (e.type === "create" || e.type === "update") {
+                    var item = e.sender && e.sender.at(0);
+                    if (!item || !item.productId || Number(item.productId) <= 0) {
+                        e.preventDefault();
+                        Swal.fire({ icon: "error", title: "Validation", text: "Please select a product." });
+                    }
+                }
+            });
+
+            products.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
+            });
+
+            locations.bind("change", function () {
+                $("#grid").data("kendoGrid").refresh();
             });
         });
     </script>
