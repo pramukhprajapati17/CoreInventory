@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.WebHost.UseUrls("http://0.0.0.0:10000");
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<Repositories.Interfaces.IUserInterface>(_ =>
 {
