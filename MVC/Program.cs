@@ -1,4 +1,14 @@
+using Microsoft.AspNetCore.HttpOverrides;
+using Npgsql;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // Add services to the container.
 builder.WebHost.UseUrls("http://0.0.0.0:10000");
@@ -90,6 +100,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
@@ -101,4 +112,29 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-app.Run();
+await DatabaseConnectivityCheckAsync(app);
+
+await app.RunAsync();
+
+static async Task DatabaseConnectivityCheckAsync(WebApplication app)
+{
+    var connectionString = app.Configuration.GetConnectionString("DefaultConnection");
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        app.Logger.LogWarning("DefaultConnection is not set. Skipping database connectivity check.");
+        return;
+    }
+
+    try
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cts.Token);
+        app.Logger.LogInformation("Database connectivity check succeeded.");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Database connectivity check failed.");
+    }
+}

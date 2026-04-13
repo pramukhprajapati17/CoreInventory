@@ -35,12 +35,16 @@ Desktop.ini
 *.snupkg
 packages/
 .nuget/
+**/out/
 
 # Local settings / secrets
 *.secrets.json
 .env
 .env.*
 appsettings.Development.json
+
+# Local scratch files
+time.txt
 
 # Local database files
 *.db
